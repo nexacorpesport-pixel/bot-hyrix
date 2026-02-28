@@ -3,14 +3,18 @@ const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 const express = require('express');
 const app = express();
 
+// Import du système de bienvenue
+const bienvenue = require('./bienvenue');
+
 // ID du serveur
 const GUILD_ID = "1455368732296872160";
 
 // Création du bot Discord
 const client = new Client({ 
     intents: [
-        GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers, // IMPORTANT pour bienvenue
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
     ] 
 });
@@ -21,9 +25,9 @@ client.once('ready', async () => {
 
     const guild = await client.guilds.fetch(GUILD_ID);
 
-    // Fonction pour mettre à jour le statut
     const updateStatus = async () => {
-        const memberCount = guild.memberCount;
+        const updatedGuild = await client.guilds.fetch(GUILD_ID);
+        const memberCount = updatedGuild.memberCount;
 
         const statuses = [
             {
@@ -37,7 +41,7 @@ client.once('ready', async () => {
                 url: "https://twitch.tv/kyrelfn"
             },
             {
-                name: "Dev by Kyrel 👑",
+                name: "HoveX Community 💎",
                 type: ActivityType.Streaming,
                 url: "https://twitch.tv/kyrelfn"
             }
@@ -51,14 +55,18 @@ client.once('ready', async () => {
         });
     };
 
-    // Mise à jour immédiate
     updateStatus();
-
-    // Mise à jour toutes les 30 secondes
     setInterval(updateStatus, 30000);
 });
 
-// Commande simple
+// 🔥 Event bienvenue
+client.on('guildMemberAdd', member => {
+    if (member.guild.id === GUILD_ID) {
+        bienvenue(client, member);
+    }
+});
+
+// Commande test
 client.on('messageCreate', message => {
     if (message.content === '!ping') {
         message.channel.send('Pong!');
@@ -70,7 +78,7 @@ client.login(process.env.TOKEN);
 
 // Serveur express pour Render
 app.get('/', (req, res) => {
-    res.send('Bot Discord actif !');
+    res.send('Bot Discord actif');
 });
 
 app.listen(process.env.PORT || 3000, () => {
