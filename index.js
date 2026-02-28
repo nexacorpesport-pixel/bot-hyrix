@@ -1,86 +1,92 @@
-// Import des modules
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+// ============================
+// IMPORTS
+// ============================
+require('dotenv').config(); // Obligatoire pour .env
+
 const express = require('express');
-const app = express();
+const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 
-// Import du système de bienvenue
+// Import des systèmes
 const bienvenue = require('./bienvenue');
+const ticketSystem = require('./ticket'); // à créer plus tard si tu veux les tickets
 
-// ID du serveur
-const GUILD_ID = "1455368732296872160";
+// ============================
+// CONFIG
+// ============================
+const app = express();
+const PORT = process.env.PORT || 3000;
+const GUILD_ID = "1455368732296872160"; // ID de ton serveur HoveX
 
-// Création du bot Discord
-const client = new Client({ 
+// ============================
+// CLIENT DISCORD
+// ============================
+const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers, // IMPORTANT pour bienvenue
+        GatewayIntentBits.GuildMembers,    // Obligatoire pour les événements de bienvenue
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-    ] 
+    ]
 });
 
-// Quand le bot est prêt
+// ============================
+// EVENT READY
+// ============================
 client.once('ready', async () => {
-    console.log(`Connecté en tant que ${client.user.tag}!`);
+    console.log(`✅ Connecté en tant que ${client.user.tag}!`);
 
-    const guild = await client.guilds.fetch(GUILD_ID);
-
+    // Mettre à jour le statut du bot
     const updateStatus = async () => {
-        const updatedGuild = await client.guilds.fetch(GUILD_ID);
-        const memberCount = updatedGuild.memberCount;
+        const guild = await client.guilds.fetch(GUILD_ID);
+        const memberCount = guild.memberCount;
 
         const statuses = [
-            {
-                name: `${memberCount} membres`,
-                type: ActivityType.Streaming,
-                url: "https://twitch.tv/kyrelfn"
-            },
-            {
-                name: "Surveille les membres 👀",
-                type: ActivityType.Streaming,
-                url: "https://twitch.tv/kyrelfn"
-            },
-            {
-                name: "HoveX Community 💎",
-                type: ActivityType.Streaming,
-                url: "https://twitch.tv/kyrelfn"
-            }
+            { name: `${memberCount} membres`, type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" },
+            { name: "Surveille les membres", type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" },
+            { name: "Dev by Kyrel", type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" }
         ];
 
         const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-
-        client.user.setActivity(randomStatus.name, {
-            type: randomStatus.type,
-            url: randomStatus.url
-        });
+        client.user.setActivity(randomStatus.name, { type: randomStatus.type, url: randomStatus.url });
     };
 
     updateStatus();
-    setInterval(updateStatus, 30000);
+    setInterval(updateStatus, 30000); // Mise à jour toutes les 30 secondes
+
+    // Initialisation du système de tickets
+    ticketSystem(client); // Si tu as créé ticket.js
 });
 
-// 🔥 Event bienvenue
+// ============================
+// EVENT BIENVENUE
+// ============================
 client.on('guildMemberAdd', member => {
     if (member.guild.id === GUILD_ID) {
-        bienvenue(client, member);
+        bienvenue(client, member); // Appelle la fonction de bienvenue
     }
 });
 
-// Commande test
+// ============================
+// COMMANDES SIMPLES
+// ============================
 client.on('messageCreate', message => {
     if (message.content === '!ping') {
-        message.channel.send('Pong!');
+        message.channel.send('Pong');
     }
 });
 
-// Connexion du bot
+// ============================
+// CONNEXION DU BOT
+// ============================
 client.login(process.env.TOKEN);
 
-// Serveur express pour Render
+// ============================
+// SERVEUR EXPRESS POUR RENDER
+// ============================
 app.get('/', (req, res) => {
-    res.send('Bot Discord actif');
+    res.send('🚀 Bot HoveX actif !');
 });
 
-app.listen(process.env.PORT || 3000, () => {
-    console.log('Serveur web actif');
+app.listen(PORT, () => {
+    console.log(`🌐 Serveur web actif sur le port ${PORT}`);
 });
