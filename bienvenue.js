@@ -1,8 +1,6 @@
-const { EmbedBuilder } = require('discord.js');
-
 module.exports = async (client, member) => {
 
-    const channelId = "1456080758815850679"; // ⚠️ Remplace par l'ID du salon bienvenue
+    const channelId = "1456080758815850679"; // Remplace par l'ID du salon
     const channel = member.guild.channels.cache.get(channelId);
     if (!channel) return;
 
@@ -18,23 +16,19 @@ module.exports = async (client, member) => {
             inviteCount = invite.uses;
         }
 
-        const embed = new EmbedBuilder()
-            .setColor("#FFC0CB") // Rose doux
-            .setAuthor({
-                name: "HoveX",
-                iconURL: member.guild.iconURL({ dynamic: true })
-            })
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
-            .setTitle("Bienvenue sur HoveX")
-            .setDescription(
-                `🤍 **${member.user.username}**, bienvenue.\n\n` +
-                `👥 Membre n° **${member.guild.memberCount}**\n\n` +
-                `🔗 Invité par : **${inviterTag}**\n` +
-                `📊 Invitations totales : **${inviteCount}**`
-            )
-            .setTimestamp();
+        const message = `
+**Bienvenue sur HoveX**
 
-        channel.send({ embeds: [embed] });
+*${member.user.username}*, nous sommes heureux de vous accueillir au sein du serveur.
+
+Vous êtes le **${member.guild.memberCount}ème membre**.
+
+Vous avez été invité par **${inviterTag}**, qui comptabilise désormais **${inviteCount} invitation(s)**.
+
+Nous vous souhaitons une excellente intégration parmi nous.
+        `;
+
+        channel.send(message);
 
     } catch (error) {
         console.error("Erreur système bienvenue :", error);
