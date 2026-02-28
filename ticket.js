@@ -1,11 +1,11 @@
-const { Client, ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+const { ChannelType, PermissionFlagsBits, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = (client) => {
 
-    const TICKET_PANEL_CHANNEL = "1456080763534442516"; // Salon panel
+    const TICKET_PANEL_CHANNEL = "1456080763534442516"; // Salon du panel
     const STAFF_ROLE = "1476307954662899990"; // Rôle staff
 
-    // Catégories
+    // Catégories de ticket
     const ticketCategories = {
         "joueur": { name: "Devenir Joueur", message: `Pseudo :
 Pseudo Epic Games :
@@ -22,7 +22,9 @@ Points forts :
 
 Anciennes équipes (si oui, lesquelles ?) :
 
-Autres informations utiles :`, roleIds: ["1456080598795030793", "1456080585742094338", "1456080578397999115", "1456080580541284352"] },
+Autres informations utiles :`,
+            roleIds: ["1456080598795030793","1456080585742094338","1456080578397999115","1456080580541284352"]
+        },
         "staff": { name: "Intégrer le staff", message: `Raison : ⚠️ Toute candidature incomplète, non sérieuse ou copiée sera refusée.
 Réponses claires, structurées et développées obligatoires.
 
@@ -48,14 +50,16 @@ Un membre irrespectueux
 Un conflit entre membres
 Un spam ou un raid
 
-📖 Le règlement s’applique strictement durant toute la procédure.`, roleIds: [STAFF_ROLE] },
+📖 Le règlement s’applique strictement durant toute la procédure.`,
+            roleIds: [STAFF_ROLE]
+        },
         "studio": { name: "Rejoindre Audiovisuel", message: "Panel en cours de préparation.", roleIds: [STAFF_ROLE] },
         "partenariat": { name: "Partenariat", message: "Panel en cours de préparation.", roleIds: ["1456080588846006556"] },
         "aide": { name: "Besoin d'aide", message: "Panel en cours de préparation.", roleIds: [STAFF_ROLE] },
         "signalement": { name: "Signalement", message: "Panel en cours de préparation.", roleIds: [STAFF_ROLE] }
     };
 
-    // Création du panel de ticket
+    // Créer le panel de ticket
     client.once('ready', async () => {
         const channel = await client.channels.fetch(TICKET_PANEL_CHANNEL);
         if (!channel) return console.log("Salon panel introuvable");
@@ -64,6 +68,7 @@ Un spam ou un raid
         const messages = await channel.messages.fetch({ limit: 10 });
         messages.forEach(msg => msg.delete().catch(() => {}));
 
+        // Crée le menu de sélection
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('ticket_select')
             .setPlaceholder('Sélectionnez votre type de ticket')
@@ -75,6 +80,7 @@ Un spam ou un raid
 
         const row = new ActionRowBuilder().addComponents(selectMenu);
 
+        // Message du panel
         await channel.send({
             content: `# 🎫・Support & Recrutement — HoveX
 
@@ -114,8 +120,7 @@ Tu souhaites intégrer notre équipe ?
 Merci de passer par le salon dédié :
 
 🔗 Salon effectif :
-https://discord.com/channels/1455368732296872160/1476306338395983945
-`,
+https://discord.com/channels/1455368732296872160/1476306338395983945`,
             components: [row]
         });
     });
@@ -147,7 +152,7 @@ https://discord.com/channels/1455368732296872160/1476306338395983945
             ]
         });
 
-        // Boutons
+        // Message d'accueil + boutons
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('Claim').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger),
@@ -157,11 +162,8 @@ https://discord.com/channels/1455368732296872160/1476306338395983945
             new ButtonBuilder().setCustomId('reminder_staff').setLabel('Rappel Staff').setStyle(ButtonStyle.Success)
         );
 
-        // Message d'accueil
-        await channel.send({
-            content: `Bonjour <@${interaction.user.id}>, merci d'avoir ouvert un ticket pour **${category.name}**.\n\n${category.message}`,
-            components: [buttons]
-        });
+        // Mention everyone uniquement dans le ticket
+        await channel.send({ content: `@everyone\nBonjour <@${interaction.user.id}>, merci d'avoir ouvert un ticket pour **${category.name}**.\n\n${category.message}`, components: [buttons] });
 
         interaction.reply({ content: `Votre ticket a été créé : ${channel}`, ephemeral: true });
     });
@@ -172,7 +174,6 @@ https://discord.com/channels/1455368732296872160/1476306338395983945
         const channel = interaction.channel;
         const member = interaction.member;
 
-        // Vérifie que le salon est un ticket
         if (!channel.name.startsWith('ticket-')) return;
 
         switch(interaction.customId) {
