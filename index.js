@@ -1,21 +1,28 @@
 // ============================
 // IMPORTS
 // ============================
-require('dotenv').config(); // Obligatoire pour .env
-
+require('dotenv').config();
 const express = require('express');
-const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    ActivityType, 
+    ChannelType, 
+    PermissionsBitField, 
+    ActionRowBuilder, 
+    StringSelectMenuBuilder, 
+    ButtonBuilder, 
+    ButtonStyle 
+} = require('discord.js');
 
-// Import des systèmes
-const bienvenue = require('./bienvenue');
-const ticketSystem = require('./ticket'); // Assure-toi d’avoir ticket.js
+const bienvenue = require('./bienvenue'); // ton fichier de bienvenue
+const ticketSystem = require('./ticket'); // ton fichier tickets
 
 // ============================
 // CONFIG
 // ============================
-const app = express();
 const PORT = process.env.PORT || 3000;
-const GUILD_ID = "1455368732296872160"; // ID de ton serveur HoveX
+const GUILD_ID = "1455368732296872160"; // Serveur HoveX
 
 // ============================
 // CLIENT DISCORD
@@ -23,19 +30,19 @@ const GUILD_ID = "1455368732296872160"; // ID de ton serveur HoveX
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,    // Obligatoire pour les événements de bienvenue
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
     ]
 });
 
 // ============================
-// EVENT READY
+// READY
 // ============================
 client.once('ready', async () => {
     console.log(`✅ Connecté en tant que ${client.user.tag}!`);
 
-    // Mettre à jour le statut du bot
+    // Statut dynamique
     const updateStatus = async () => {
         const guild = await client.guilds.fetch(GUILD_ID);
         const memberCount = guild.memberCount;
@@ -51,14 +58,14 @@ client.once('ready', async () => {
     };
 
     updateStatus();
-    setInterval(updateStatus, 30000); // Mise à jour toutes les 30 secondes
+    setInterval(updateStatus, 30000);
 
     // Initialisation du système de tickets
-    if (typeof ticketSystem === "function") ticketSystem(client); 
+    if (typeof ticketSystem === "function") ticketSystem(client);
 });
 
 // ============================
-// EVENT BIENVENUE
+// BIENVENUE
 // ============================
 client.on('guildMemberAdd', member => {
     if (member.guild.id === GUILD_ID) {
@@ -71,7 +78,7 @@ client.on('guildMemberAdd', member => {
 // ============================
 client.on('messageCreate', message => {
     if (message.content === '!ping') {
-        message.channel.send('Pong');
+        message.channel.send('Pong !');
     }
 });
 
@@ -81,13 +88,15 @@ client.on('messageCreate', message => {
 client.login(process.env.TOKEN);
 
 // ============================
-// SERVEUR EXPRESS POUR RENDER
+// SERVEUR EXPRESS
 // ============================
+const app = express();
+
 app.get('/', (req, res) => {
     res.send('🚀 Bot HoveX actif !');
 });
 
-// ⚡ Important : utiliser uniquement process.env.PORT pour Render
+// ⚡ Express écoute seulement sur process.env.PORT
 app.listen(PORT, () => {
     console.log(`🌐 Serveur web actif sur le port ${PORT}`);
 });
