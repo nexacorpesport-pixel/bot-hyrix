@@ -8,7 +8,7 @@ const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 
 // Import des systèmes
 const bienvenue = require('./bienvenue');
-const ticketSystem = require('./ticket'); // à créer plus tard si tu veux les tickets
+const ticketSystem = require('./ticket'); // Assure-toi d’avoir ticket.js
 
 // ============================
 // CONFIG
@@ -54,7 +54,7 @@ client.once('ready', async () => {
     setInterval(updateStatus, 30000); // Mise à jour toutes les 30 secondes
 
     // Initialisation du système de tickets
-    ticketSystem(client); // Si tu as créé ticket.js
+    if (typeof ticketSystem === "function") ticketSystem(client); 
 });
 
 // ============================
@@ -62,7 +62,7 @@ client.once('ready', async () => {
 // ============================
 client.on('guildMemberAdd', member => {
     if (member.guild.id === GUILD_ID) {
-        bienvenue(client, member); // Appelle la fonction de bienvenue
+        bienvenue(client, member);
     }
 });
 
@@ -87,6 +87,7 @@ app.get('/', (req, res) => {
     res.send('🚀 Bot HoveX actif !');
 });
 
+// ⚡ Important : utiliser uniquement process.env.PORT pour Render
 app.listen(PORT, () => {
     console.log(`🌐 Serveur web actif sur le port ${PORT}`);
 });
