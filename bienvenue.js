@@ -9,7 +9,7 @@ client.once("ready", () => {
 
 // Exemple d'événement guildMemberAdd
 client.on("guildMemberAdd", async member => {
-  const channelId = "1456080758815850679";
+  const channelId = "1487498673666654238";
   const channel = member.guild.channels.cache.get(channelId);
   if (!channel) return;
 
@@ -26,7 +26,7 @@ client.on("guildMemberAdd", async member => {
     }
 
     const message = `
-**Bienvenue sur HoveX**
+**Bienvenue sur Ventrix**
 
 *${member.user.username}*, nous sommes heureux de vous accueillir au sein du serveur.
 
