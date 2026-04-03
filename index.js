@@ -16,7 +16,6 @@ const {
 } = require('discord.js');
 
 const bienvenue = require('./bienvenue'); // ton fichier de bienvenue
-const ticketSystem = require('./ticket'); // ton fichier tickets
 
 // ============================
 // CONFIG
