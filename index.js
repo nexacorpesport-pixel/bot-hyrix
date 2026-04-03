@@ -22,7 +22,7 @@ const ticketSystem = require('./ticket'); // ton fichier tickets
 // CONFIG
 // ============================
 const PORT = process.env.PORT || 3000;
-const GUILD_ID = "1455368732296872160"; // Serveur HoveX
+const GUILD_ID = "1487418699303620650"; // Serveur HoveX
 
 // ============================
 // CLIENT DISCORD
