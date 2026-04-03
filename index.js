@@ -49,7 +49,7 @@ client.once('ready', async () => {
         const statuses = [
             { name: `${memberCount} membres`, type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" },
             { name: "Surveille les membres", type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" },
-            { name: "Dev by Kyrel", type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" }
+            { name: "Dev by zxlorz", type: ActivityType.Streaming, url: "https://twitch.tv/kyrelfn" }
         ];
 
         const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
