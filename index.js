@@ -11,6 +11,7 @@ const {
 
 const bienvenue = require('./bienvenue');
 const statutBot = require('./statutBot'); // ✅ ajout
+const moderation = require('./moderation');
 
 // ============================
 // CONFIG
