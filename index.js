@@ -6,22 +6,17 @@ const express = require('express');
 const { 
     Client, 
     GatewayIntentBits, 
-    ActivityType, 
-    ChannelType, 
-    PermissionsBitField, 
-    ActionRowBuilder, 
-    StringSelectMenuBuilder, 
-    ButtonBuilder, 
-    ButtonStyle 
+    ActivityType
 } = require('discord.js');
 
-const bienvenue = require('./bienvenue'); // ton fichier de bienvenue
+const bienvenue = require('./bienvenue');
+const statutBot = require('./statutBot'); // ✅ ajout
 
 // ============================
 // CONFIG
 // ============================
 const PORT = process.env.PORT || 3000;
-const GUILD_ID = "1487418699303620650"; // Serveur HoveX
+const GUILD_ID = "1487418699303620650";
 
 // ============================
 // CLIENT DISCORD
@@ -41,9 +36,10 @@ const client = new Client({
 client.once('ready', async () => {
     console.log(`✅ Connecté en tant que ${client.user.tag}!`);
 
-    // Statut dynamique
+    const guild = await client.guilds.fetch(GUILD_ID);
+
+    // 🎯 Statut dynamique
     const updateStatus = async () => {
-        const guild = await client.guilds.fetch(GUILD_ID);
         const memberCount = guild.memberCount;
 
         const statuses = [
@@ -53,14 +49,17 @@ client.once('ready', async () => {
         ];
 
         const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        client.user.setActivity(randomStatus.name, { type: randomStatus.type, url: randomStatus.url });
+        client.user.setActivity(randomStatus.name, { 
+            type: randomStatus.type, 
+            url: randomStatus.url 
+        });
     };
 
     updateStatus();
     setInterval(updateStatus, 30000);
 
-    // Initialisation du système de tickets
-    if (typeof ticketSystem === "function") ticketSystem(client);
+    // 📊 Lancer le StatutBot
+    statutBot.initStatus(client);
 });
 
 // ============================
@@ -73,12 +72,21 @@ client.on('guildMemberAdd', member => {
 });
 
 // ============================
-// COMMANDES SIMPLES
+// COMMANDES
 // ============================
 client.on('messageCreate', message => {
+    if (message.author.bot) return;
+
     if (message.content === '!ping') {
         message.channel.send('Pong !');
     }
+});
+
+// ============================
+// MENU INTERACTION (StatutBot)
+// ============================
+client.on('interactionCreate', async (interaction) => {
+    statutBot.handleInteraction(interaction);
 });
 
 // ============================
@@ -95,7 +103,6 @@ app.get('/', (req, res) => {
     res.send('🚀 Bot HoveX actif !');
 });
 
-// ⚡ Express écoute seulement sur process.env.PORT
 app.listen(PORT, () => {
     console.log(`🌐 Serveur web actif sur le port ${PORT}`);
 });
