@@ -1,19 +1,35 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 require("dotenv").config();
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+const client = new Client({ 
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] 
+});
 
 client.once("ready", () => {
   console.log(`${client.user.tag} est en ligne !`);
 });
 
-// Exemple d'événement guildMemberAdd
 client.on("guildMemberAdd", async member => {
   const channelId = "1487498673666654238";
   const channel = member.guild.channels.cache.get(channelId);
-  if (!channel) return;
+
+  // 👉 IDs des rôles à ajouter automatiquement
+  const rolesToAdd = [
+    "1490074813526577312",
+    "1487506977419558992",
+    "1490074951074713672"
+  ];
 
   try {
+    // ✅ Ajout des rôles
+    for (const roleId of rolesToAdd) {
+      const role = member.guild.roles.cache.get(roleId);
+      if (role) {
+        await member.roles.add(role);
+      }
+    }
+
+    // ✅ Gestion des invitations
     const invites = await member.guild.invites.fetch();
     const invite = invites.find(inv => inv.uses > 0 && inv.inviter);
 
@@ -37,7 +53,7 @@ Vous avez été invité par **${inviterTag}**, qui comptabilise désormais **${i
 Nous vous souhaitons une excellente intégration parmi nous.
     `;
 
-    channel.send(message);
+    if (channel) channel.send(message);
 
   } catch (error) {
     console.error("Erreur système bienvenue :", error);
