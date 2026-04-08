@@ -3,14 +3,10 @@
 // ============================
 require('dotenv').config();
 const express = require('express');
-const { 
-    Client, 
-    GatewayIntentBits, 
-    ActivityType
-} = require('discord.js');
+const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
 
 const bienvenue = require('./bienvenue');
-const statutBot = require('./statutBot'); // ✅ ajout
+const statutBot = require('./statutBot');
 
 // ============================
 // CONFIG
@@ -33,12 +29,11 @@ const client = new Client({
 // ============================
 // READY
 // ============================
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`✅ Connecté en tant que ${client.user.tag}!`);
 
     const guild = await client.guilds.fetch(GUILD_ID);
 
-    // 🎯 Statut dynamique
     const updateStatus = async () => {
         const memberCount = guild.memberCount;
 
@@ -49,16 +44,16 @@ client.once('ready', async () => {
         ];
 
         const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        client.user.setActivity(randomStatus.name, { 
-            type: randomStatus.type, 
-            url: randomStatus.url 
+
+        client.user.setActivity(randomStatus.name, {
+            type: randomStatus.type,
+            url: randomStatus.url
         });
     };
 
     updateStatus();
     setInterval(updateStatus, 30000);
 
-    // 📊 Lancer le StatutBot
     statutBot.initStatus(client);
 });
 
@@ -83,14 +78,14 @@ client.on('messageCreate', message => {
 });
 
 // ============================
-// MENU INTERACTION (StatutBot)
+// INTERACTIONS
 // ============================
 client.on('interactionCreate', async (interaction) => {
     statutBot.handleInteraction(interaction);
 });
 
 // ============================
-// CONNEXION DU BOT
+// CONNEXION
 // ============================
 client.login(process.env.TOKEN);
 
@@ -100,7 +95,7 @@ client.login(process.env.TOKEN);
 const app = express();
 
 app.get('/', (req, res) => {
-    res.send('🚀 Bot HoveX actif !');
+    res.send('🚀 Bot actif !');
 });
 
 app.listen(PORT, () => {
