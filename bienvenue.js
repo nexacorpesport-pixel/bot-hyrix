@@ -1,3 +1,5 @@
+const { EmbedBuilder } = require('discord.js');
+
 module.exports = async (client, member) => {
   const channelId = "1487498673666654238";
   const channel = member.guild.channels.cache.get(channelId);
@@ -9,7 +11,9 @@ module.exports = async (client, member) => {
   ];
 
   try {
-    // Ajout des rôles
+    // =========================
+    // 🎭 AJOUT DES RÔLES
+    // =========================
     for (const roleId of rolesToAdd) {
       const role = member.guild.roles.cache.get(roleId);
       if (role) {
@@ -17,7 +21,9 @@ module.exports = async (client, member) => {
       }
     }
 
-    // Invitations
+    // =========================
+    // 🎟 INVITATIONS
+    // =========================
     const invites = await member.guild.invites.fetch();
     const invite = invites.find(inv => inv.uses > 0 && inv.inviter);
 
@@ -29,17 +35,34 @@ module.exports = async (client, member) => {
       inviteCount = invite.uses;
     }
 
-    const message = `
-🎉 **Bienvenue sur Ventrix**
+    // =========================
+    // 💖 EMBED
+    // =========================
+    const embed = new EmbedBuilder()
+      .setColor("#ff69b4") // rose
+      .setTitle("🎉 Bienvenue sur Ventrix")
+      .setDescription(
+`👋 ${member}  
 
-👤 ${member.user.username}
-📊 ${member.guild.memberCount}ème membre
+Nous sommes heureux de t'accueillir 💕  
 
-📨 Invité par : **${inviterTag}**
-🎯 Invitations : **${inviteCount}**
-    `;
+📊 Tu es le **${member.guild.memberCount}ème membre**  
 
-    if (channel) channel.send(message);
+📨 Invité par : **${inviterTag}**  
+🎯 Invitations : **${inviteCount}**  
+
+✨ Passe un excellent moment parmi nous !`
+      )
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 })) // PDP
+      .setFooter({ text: `ID : ${member.id}` })
+      .setTimestamp();
+
+    // =========================
+    // 📩 ENVOI
+    // =========================
+    if (channel) {
+      channel.send({ embeds: [embed] });
+    }
 
   } catch (error) {
     console.error("Erreur bienvenue :", error);
