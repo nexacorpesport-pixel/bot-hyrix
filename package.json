@@ -5,7 +5,11 @@
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
+    "canvas": "^2.11.2",
     "discord.js": "^14.25.1",
     "dotenv": "^16.6.1",
     "express": "^4.22.1"
