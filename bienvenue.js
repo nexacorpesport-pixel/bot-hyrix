@@ -1,19 +1,7 @@
-const { Client, GatewayIntentBits } = require("discord.js");
-require("dotenv").config();
-
-const client = new Client({ 
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] 
-});
-
-client.once("ready", () => {
-  console.log(`${client.user.tag} est en ligne !`);
-});
-
-client.on("guildMemberAdd", async member => {
+module.exports = async (client, member) => {
   const channelId = "1487498673666654238";
   const channel = member.guild.channels.cache.get(channelId);
 
-  // 👉 IDs des rôles à ajouter automatiquement
   const rolesToAdd = [
     "1490074813526577312",
     "1487506977419558992",
@@ -21,7 +9,7 @@ client.on("guildMemberAdd", async member => {
   ];
 
   try {
-    // ✅ Ajout des rôles
+    // Ajout des rôles
     for (const roleId of rolesToAdd) {
       const role = member.guild.roles.cache.get(roleId);
       if (role) {
@@ -29,7 +17,7 @@ client.on("guildMemberAdd", async member => {
       }
     }
 
-    // ✅ Gestion des invitations
+    // Invitations
     const invites = await member.guild.invites.fetch();
     const invite = invites.find(inv => inv.uses > 0 && inv.inviter);
 
@@ -42,22 +30,18 @@ client.on("guildMemberAdd", async member => {
     }
 
     const message = `
-**Bienvenue sur Ventrix**
+🎉 **Bienvenue sur Ventrix**
 
-*${member.user.username}*, nous sommes heureux de vous accueillir au sein du serveur.
+👤 ${member.user.username}
+📊 ${member.guild.memberCount}ème membre
 
-Vous êtes le **${member.guild.memberCount}ème membre**.
-
-Vous avez été invité par **${inviterTag}**, qui comptabilise désormais **${inviteCount} invitation(s)**.
-
-Nous vous souhaitons une excellente intégration parmi nous.
+📨 Invité par : **${inviterTag}**
+🎯 Invitations : **${inviteCount}**
     `;
 
     if (channel) channel.send(message);
 
   } catch (error) {
-    console.error("Erreur système bienvenue :", error);
+    console.error("Erreur bienvenue :", error);
   }
-});
-
-client.login(process.env.TOKEN);
+};
