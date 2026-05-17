@@ -6,8 +6,9 @@ const {
 
 require("dotenv").config();
 
-// ===== IMPORT EVENT =====
+// ===== IMPORTS =====
 const bienvenue = require("./events/bienvenue");
+const onboarding = require("./events/onboarding");
 
 const app = express();
 
@@ -22,7 +23,7 @@ app.listen(PORT, () => {
     console.log(`🌐 Serveur web actif sur le port ${PORT}`);
 });
 
-// ===== BOT DISCORD =====
+// ===== CLIENT DISCORD =====
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -34,16 +35,27 @@ const client = new Client({
 
 // ===== READY =====
 client.once("clientReady", () => {
+
+    console.log("=================================");
     console.log(`✅ Connecté en tant que ${client.user.tag}`);
+    console.log("🚀 Pixar Bot opérationnel");
+    console.log("=================================");
+
 });
 
-// ===== EVENT BIENVENUE =====
+// ===== MEMBER JOIN =====
 client.on("guildMemberAdd", async (member) => {
+
+    // MESSAGE BIENVENUE
     bienvenue(client, member);
+
+    // ONBOARDING
+    onboarding(client, member);
+
 });
 
-// ===== COMMANDE !ping =====
-client.on("messageCreate", (message) => {
+// ===== COMMANDE PING =====
+client.on("messageCreate", async (message) => {
 
     if (message.author.bot) return;
 
@@ -51,10 +63,13 @@ client.on("messageCreate", (message) => {
 
         const latency = Date.now() - message.createdTimestamp;
 
-        message.reply(`🏓 Pong ! \`${latency}ms\``);
+        message.reply({
+            content: `🏓 Pong ! \`${latency}ms\``
+        });
 
     }
 
 });
 
+// ===== LOGIN =====
 client.login(process.env.TOKEN);
