@@ -1,17 +1,14 @@
 {
-  "name": "axion-bot",
+  "name": "ventrix-bot",
   "version": "1.0.0",
+  "description": "Ventrix Discord Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": "18.x"
-  },
   "dependencies": {
-    "canvas": "^2.11.2",
-    "discord.js": "^14.25.1",
+    "discord.js": "^14.21.0",
     "dotenv": "^16.6.1",
-    "express": "^4.22.1"
+    "express": "^5.1.0"
   }
 }
