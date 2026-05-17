@@ -2,6 +2,8 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     StringSelectMenuBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     PermissionsBitField,
     ChannelType
 } = require("discord.js");
@@ -10,7 +12,9 @@ module.exports = async (client, member) => {
 
     try {
 
-        // ===== IDS =====
+        // =========================================
+        // IDS
+        // =========================================
 
         const ARRIVE_ROLE = "1505625588121997572";
 
@@ -31,45 +35,102 @@ module.exports = async (client, member) => {
         const VERIFIED_ROLE = "1505330731193335920";
         const MEMBER_ROLE = "1505330732187521035";
 
-        const WELCOME_CHANNEL = "1505330766047875242";
+        const CEO_ROLE = "1505330692106485781";
 
-        // ===== ROLE ARRIVEE =====
+        const BIENVENUE_CHANNEL = "1505330766047875242";
+
+        // =========================================
+        // ROLE ARRIVEE
+        // =========================================
 
         const arriveRole = member.guild.roles.cache.get(ARRIVE_ROLE);
 
         if (arriveRole) {
-            await member.roles.add(arriveRole);
+            await member.roles.add(arriveRole).catch(() => {});
         }
 
-        // ===== CREATE CHANNEL =====
+        // =========================================
+        // CREATE CHANNEL
+        // =========================================
 
         const channel = await member.guild.channels.create({
-            name: `${member.user.username}`,
+            name: member.user.username.toLowerCase(),
+
             type: ChannelType.GuildText,
 
             permissionOverwrites: [
+
                 {
                     id: member.guild.id,
+
                     deny: [
                         PermissionsBitField.Flags.ViewChannel
                     ]
                 },
+
                 {
                     id: member.id,
+
                     allow: [
                         PermissionsBitField.Flags.ViewChannel,
                         PermissionsBitField.Flags.SendMessages,
                         PermissionsBitField.Flags.ReadMessageHistory
                     ]
                 }
+
             ]
         });
 
-        // ===== EMBED =====
+        // =========================================
+        // HELP BUTTON
+        // =========================================
 
-        const embed = new EmbedBuilder()
+        const helpButton = new ActionRowBuilder()
+            .addComponents(
+
+                new ButtonBuilder()
+                    .setCustomId("help")
+                    .setLabel("Besoin d'aide")
+                    .setStyle(ButtonStyle.Secondary)
+
+            );
+
+        // =========================================
+        // QUESTION 1
+        // =========================================
+
+        const genreMenu = new ActionRowBuilder()
+            .addComponents(
+
+                new StringSelectMenuBuilder()
+                    .setCustomId("genre")
+                    .setPlaceholder("Choisis ton genre")
+                    .setMinValues(1)
+                    .setMaxValues(1)
+
+                    .addOptions([
+                        {
+                            label: "Homme",
+                            value: "homme"
+                        },
+                        {
+                            label: "Femme",
+                            value: "femme"
+                        },
+                        {
+                            label: "Non précisé",
+                            value: "np"
+                        }
+                    ])
+
+            );
+
+        const welcomeEmbed = new EmbedBuilder()
+
             .setColor("#ffb347")
-            .setTitle("✨ Bienvenue sur Pixar")
+
+            .setTitle("✨ Bienvenue sur Pyxar")
+
             .setDescription(`
 Bienvenue ${member}
 
@@ -86,175 +147,148 @@ Merci de compléter ton onboarding afin d'accéder au serveur.
 
 Une fois terminé, ton accès sera automatiquement débloqué.
 `)
+
             .setFooter({
-                text: "Pixar"
+                text: "Pyxar"
             });
-
-        // ===== MENU GENRE =====
-
-        const genreMenu = new ActionRowBuilder()
-            .addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId("genre")
-                    .setPlaceholder("Choisis ton genre")
-                    .addOptions([
-                        {
-                            label: "Homme",
-                            value: "homme"
-                        },
-                        {
-                            label: "Femme",
-                            value: "femme"
-                        },
-                        {
-                            label: "Non précisé",
-                            value: "np"
-                        }
-                    ])
-            );
-
-        // ===== MENU NOTIFS =====
-
-        const notifMenu = new ActionRowBuilder()
-            .addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId("notif")
-                    .setPlaceholder("Choisis tes notifications")
-                    .setMinValues(1)
-                    .setMaxValues(4)
-                    .addOptions([
-                        {
-                            label: "Annonces",
-                            value: "annonces"
-                        },
-                        {
-                            label: "Lives",
-                            value: "lives"
-                        },
-                        {
-                            label: "Events",
-                            value: "events"
-                        },
-                        {
-                            label: "Réseaux",
-                            value: "reseaux"
-                        }
-                    ])
-            );
-
-        // ===== MENU OBJECTIF =====
-
-        const objectifMenu = new ActionRowBuilder()
-            .addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId("objectif")
-                    .setPlaceholder("Choisis ton objectif")
-                    .addOptions([
-                        {
-                            label: "Devenir joueur",
-                            value: "joueur"
-                        },
-                        {
-                            label: "Devenir staff",
-                            value: "staff"
-                        }
-                    ])
-            );
-
-        // ===== MENU REGLEMENT =====
-
-        const reglementMenu = new ActionRowBuilder()
-            .addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId("reglement")
-                    .setPlaceholder("Accepter le règlement")
-                    .addOptions([
-                        {
-                            label: "J'accepte le règlement",
-                            value: "accept"
-                        }
-                    ])
-            );
-
-        // ===== SEND =====
 
         await channel.send({
+
             content: `${member}`,
-            embeds: [embed],
+
+            embeds: [welcomeEmbed],
+
             components: [
                 genreMenu,
-                notifMenu,
-                objectifMenu,
-                reglementMenu
+                helpButton
             ]
+
         });
 
-        // ===== LOG CHANNEL =====
-
-        const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL);
-
-        if (welcomeChannel) {
-
-            await welcomeChannel.send({
-                embeds: [
-                    new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setDescription(`✨ ${member} vient de rejoindre Pixar`)
-                ]
-            });
-
-        }
-
-        // ===== INTERACTION =====
+        // =========================================
+        // COLLECTOR
+        // =========================================
 
         const collector = channel.createMessageComponentCollector({
             time: 600000
         });
 
-        let genreDone = false;
-        let notifDone = false;
-        let objectifDone = false;
-        let reglementDone = false;
-
         collector.on("collect", async (interaction) => {
 
+            // =========================================
+            // SECURITE
+            // =========================================
+
             if (interaction.user.id !== member.id) {
+
                 return interaction.reply({
                     content: "❌ Ce menu ne t'appartient pas.",
                     ephemeral: true
                 });
+
             }
 
-            // ===== GENRE =====
+            // =========================================
+            // HELP
+            // =========================================
 
-            if (interaction.customId === "genre") {
+            if (interaction.customId === "help") {
 
-                genreDone = true;
+                return interaction.reply({
 
-                if (interaction.values[0] === "homme") {
-                    await member.roles.add(HOMME_ROLE);
-                }
+                    content:
+                    `<@&${CEO_ROLE}> assistance demandée par ${member}.`,
 
-                if (interaction.values[0] === "femme") {
-                    await member.roles.add(FEMME_ROLE);
-                }
+                    ephemeral: false
 
-                if (interaction.values[0] === "np") {
-                    await member.roles.add(NP_ROLE);
-                }
-
-                await interaction.reply({
-                    content: "✅ Genre enregistré",
-                    ephemeral: true
                 });
 
             }
 
-            // ===== NOTIFS =====
+            // =========================================
+            // GENRE
+            // =========================================
+
+            if (interaction.customId === "genre") {
+
+                const value = interaction.values[0];
+
+                if (value === "homme") {
+                    await member.roles.add(HOMME_ROLE);
+                }
+
+                if (value === "femme") {
+                    await member.roles.add(FEMME_ROLE);
+                }
+
+                if (value === "np") {
+                    await member.roles.add(NP_ROLE);
+                }
+
+                await interaction.message.delete().catch(() => {});
+
+                // =========================================
+                // QUESTION 2
+                // =========================================
+
+                const notifMenu = new ActionRowBuilder()
+                    .addComponents(
+
+                        new StringSelectMenuBuilder()
+                            .setCustomId("notif")
+                            .setPlaceholder("Choisis tes notifications")
+                            .setMinValues(1)
+                            .setMaxValues(4)
+
+                            .addOptions([
+                                {
+                                    label: "Annonces",
+                                    value: "annonces"
+                                },
+                                {
+                                    label: "Lives",
+                                    value: "lives"
+                                },
+                                {
+                                    label: "Events",
+                                    value: "events"
+                                },
+                                {
+                                    label: "Réseaux",
+                                    value: "reseaux"
+                                }
+                            ])
+
+                    );
+
+                const notifEmbed = new EmbedBuilder()
+
+                    .setColor("#ffb347")
+
+                    .setTitle("🔔 Notifications")
+
+                    .setDescription(`
+Choisis les notifications que tu souhaites recevoir.
+`);
+
+                await channel.send({
+
+                    embeds: [notifEmbed],
+
+                    components: [
+                        notifMenu,
+                        helpButton
+                    ]
+
+                });
+
+            }
+
+            // =========================================
+            // NOTIFS
+            // =========================================
 
             if (interaction.customId === "notif") {
-
-                notifDone = true;
 
                 if (interaction.values.includes("annonces")) {
                     await member.roles.add(ANNONCES_ROLE);
@@ -272,61 +306,231 @@ Une fois terminé, ton accès sera automatiquement débloqué.
                     await member.roles.add(RESEAUX_ROLE);
                 }
 
-                await interaction.reply({
-                    content: "✅ Notifications enregistrées",
-                    ephemeral: true
+                await interaction.message.delete().catch(() => {});
+
+                // =========================================
+                // QUESTION 3
+                // =========================================
+
+                const objectifMenu = new ActionRowBuilder()
+                    .addComponents(
+
+                        new StringSelectMenuBuilder()
+                            .setCustomId("objectif")
+                            .setPlaceholder("Choisis ton objectif")
+                            .setMinValues(1)
+                            .setMaxValues(1)
+
+                            .addOptions([
+                                {
+                                    label: "Devenir joueur",
+                                    value: "joueur"
+                                },
+                                {
+                                    label: "Devenir staff",
+                                    value: "staff"
+                                }
+                            ])
+
+                    );
+
+                const objectifEmbed = new EmbedBuilder()
+
+                    .setColor("#ffb347")
+
+                    .setTitle("🎯 Objectif")
+
+                    .setDescription(`
+Quel est ton objectif sur Pyxar ?
+`);
+
+                await channel.send({
+
+                    embeds: [objectifEmbed],
+
+                    components: [
+                        objectifMenu,
+                        helpButton
+                    ]
+
                 });
 
             }
 
-            // ===== OBJECTIF =====
+            // =========================================
+            // OBJECTIF
+            // =========================================
 
             if (interaction.customId === "objectif") {
 
-                objectifDone = true;
+                const value = interaction.values[0];
 
-                if (interaction.values[0] === "joueur") {
+                if (value === "joueur") {
                     await member.roles.add(JOUEUR_ROLE);
                 }
 
-                if (interaction.values[0] === "staff") {
+                if (value === "staff") {
                     await member.roles.add(STAFF_ROLE);
                 }
 
-                await interaction.reply({
-                    content: "✅ Objectif enregistré",
-                    ephemeral: true
+                await interaction.message.delete().catch(() => {});
+
+                // =========================================
+                // QUESTION 4
+                // =========================================
+
+                const rulesMenu = new ActionRowBuilder()
+                    .addComponents(
+
+                        new StringSelectMenuBuilder()
+                            .setCustomId("rules")
+                            .setPlaceholder("Accepter le règlement")
+                            .setMinValues(1)
+                            .setMaxValues(1)
+
+                            .addOptions([
+                                {
+                                    label: "J'accepte le règlement",
+                                    value: "accept"
+                                }
+                            ])
+
+                    );
+
+                const rulesEmbed = new EmbedBuilder()
+
+                    .setColor("#ffb347")
+
+                    .setTitle("📖 Règlement")
+
+                    .setDescription(`
+Merci d'accepter le règlement afin d'accéder au serveur.
+`);
+
+                await channel.send({
+
+                    embeds: [rulesEmbed],
+
+                    components: [
+                        rulesMenu,
+                        helpButton
+                    ]
+
                 });
 
             }
 
-            // ===== REGLEMENT =====
+            // =========================================
+            // RULES
+            // =========================================
 
-            if (interaction.customId === "reglement") {
+            if (interaction.customId === "rules") {
 
-                reglementDone = true;
+                await member.roles.add(ACCESS_ROLE).catch(() => {});
+                await member.roles.add(VERIFIED_ROLE).catch(() => {});
+                await member.roles.add(MEMBER_ROLE).catch(() => {});
 
-                await member.roles.add(ACCESS_ROLE);
-                await member.roles.add(VERIFIED_ROLE);
-                await member.roles.add(MEMBER_ROLE);
+                await interaction.message.delete().catch(() => {});
 
-                await interaction.reply({
-                    content: "✅ Règlement accepté",
-                    ephemeral: true
+                // =========================================
+                // CAPTCHA
+                // =========================================
+
+                const captcha =
+                    Math.floor(1000 + Math.random() * 9000);
+
+                member.captchaCode = captcha;
+
+                const captchaEmbed = new EmbedBuilder()
+
+                    .setColor("#ffb347")
+
+                    .setTitle("🛡️ Captcha")
+
+                    .setDescription(`
+Merci d'envoyer le code suivant dans ce salon :
+
+# ${captcha}
+`);
+
+                await channel.send({
+                    embeds: [captchaEmbed]
                 });
 
             }
 
-            // ===== FIN =====
+        });
+
+        // =========================================
+        // CAPTCHA COLLECTOR
+        // =========================================
+
+        const msgCollector = channel.createMessageCollector({
+            time: 600000
+        });
+
+        msgCollector.on("collect", async (msg) => {
+
+            if (msg.author.bot) return;
+
+            // =========================================
+            // WRONG CAPTCHA
+            // =========================================
 
             if (
-                genreDone &&
-                notifDone &&
-                objectifDone &&
-                reglementDone
+                member.captchaCode &&
+                msg.content !== member.captchaCode.toString()
             ) {
 
-                await channel.send("✅ Onboarding terminé.");
+                return msg.reply("❌ Captcha incorrect.");
+
+            }
+
+            // =========================================
+            // GOOD CAPTCHA
+            // =========================================
+
+            if (
+                member.captchaCode &&
+                msg.content === member.captchaCode.toString()
+            ) {
+
+                const successEmbed = new EmbedBuilder()
+
+                    .setColor("#57f287")
+
+                    .setTitle("✅ Vérification terminée")
+
+                    .setDescription(`
+Ton onboarding est terminé.
+
+Bienvenue sur Pyxar.
+Redirection vers le serveur...
+`);
+
+                await channel.send({
+                    embeds: [successEmbed]
+                });
+
+                // =========================================
+                // REDIRECTION
+                // =========================================
+
+                const bienvenue =
+                    member.guild.channels.cache.get(BIENVENUE_CHANNEL);
+
+                if (bienvenue) {
+
+                    await bienvenue.send({
+                        content:
+                        `✨ ${member} a terminé son onboarding.`
+                    });
+
+                }
+
+                // =========================================
+                // DELETE CHANNEL
+                // =========================================
 
                 setTimeout(async () => {
 
