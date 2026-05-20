@@ -28,15 +28,11 @@ const PORT = 3000;
 // =========================
 
 app.get("/", (req, res) => {
-
     res.send("Pyxar Bot Online");
-
 });
 
 app.listen(PORT, () => {
-
     console.log(`🌐 Web server running on port ${PORT}`);
-
 });
 
 // =========================
@@ -44,29 +40,22 @@ app.listen(PORT, () => {
 // =========================
 
 const client = new Client({
-
     intents: [
-
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
-
     ],
-
     partials: [
-
         Partials.Channel
-
     ]
-
 });
 
 // =========================
-// READY
+// READY (CORRIGÉ ICI)
 // =========================
 
-client.once("clientReady", async () => {
+client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
@@ -83,9 +72,7 @@ client.once("clientReady", async () => {
 // =========================
 
 client.on("guildMemberAdd", async (member) => {
-
     onboarding(client, member);
-
 });
 
 // =========================
@@ -102,12 +89,8 @@ client.on("messageCreate", async (message) => {
     // =========================
 
     if (message.content === "!ping") {
-
-        const ping =
-            Date.now() - message.createdTimestamp;
-
+        const ping = Date.now() - message.createdTimestamp;
         message.reply(`🏓 Pong : ${ping}ms`);
-
     }
 
 });
