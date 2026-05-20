@@ -41,7 +41,7 @@ const client = new Client({
 client.once("clientReady", () => {
     console.log(`✅ Logged as ${client.user.tag}`);
 });
-
+ticketSystem(client);
 // ===== MEMBER JOIN =====
 client.on("guildMemberAdd", async (member) => {
     onboarding(client, member);
