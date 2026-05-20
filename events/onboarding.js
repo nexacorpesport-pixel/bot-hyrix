@@ -32,6 +32,7 @@ module.exports = async (client, member) => {
 
         const ACCESS_ROLE = "1505330734842515586";
 
+        // ROLES APRÈS CAPTCHA UNIQUEMENT
         const VERIFIED_ROLE = "1505330731193335920";
         const MEMBER_ROLE = "1505330732187521035";
 
@@ -175,10 +176,6 @@ Une fois terminé, ton accès sera automatiquement débloqué.
 
         collector.on("collect", async (interaction) => {
 
-            // =========================================
-            // SECURITE
-            // =========================================
-
             if (interaction.user.id !== member.id) {
 
                 return interaction.reply({
@@ -228,7 +225,7 @@ Une fois terminé, ton accès sera automatiquement débloqué.
                 await interaction.message.delete().catch(() => {});
 
                 // =========================================
-                // QUESTION 2
+                // NOTIFS
                 // =========================================
 
                 const notifMenu = new ActionRowBuilder()
@@ -271,15 +268,9 @@ Une fois terminé, ton accès sera automatiquement débloqué.
 Choisis les notifications que tu souhaites recevoir.
 `);
 
-                await channel.send({
-
+                await interaction.reply({
                     embeds: [notifEmbed],
-
-                    components: [
-                        notifMenu,
-                        helpButton
-                    ]
-
+                    components: [notifMenu, helpButton]
                 });
 
             }
@@ -309,7 +300,7 @@ Choisis les notifications que tu souhaites recevoir.
                 await interaction.message.delete().catch(() => {});
 
                 // =========================================
-                // QUESTION 3
+                // OBJECTIF
                 // =========================================
 
                 const objectifMenu = new ActionRowBuilder()
@@ -344,15 +335,9 @@ Choisis les notifications que tu souhaites recevoir.
 Quel est ton objectif sur Pyxar ?
 `);
 
-                await channel.send({
-
+                await interaction.reply({
                     embeds: [objectifEmbed],
-
-                    components: [
-                        objectifMenu,
-                        helpButton
-                    ]
-
+                    components: [objectifMenu, helpButton]
                 });
 
             }
@@ -376,7 +361,7 @@ Quel est ton objectif sur Pyxar ?
                 await interaction.message.delete().catch(() => {});
 
                 // =========================================
-                // QUESTION 4
+                // RULES
                 // =========================================
 
                 const rulesMenu = new ActionRowBuilder()
@@ -404,18 +389,12 @@ Quel est ton objectif sur Pyxar ?
                     .setTitle("📖 Règlement")
 
                     .setDescription(`
-Merci d'accepter le règlement afin d'accéder au serveur.
+Merci d'accepter le règlement afin de continuer.
 `);
 
-                await channel.send({
-
+                await interaction.reply({
                     embeds: [rulesEmbed],
-
-                    components: [
-                        rulesMenu,
-                        helpButton
-                    ]
-
+                    components: [rulesMenu, helpButton]
                 });
 
             }
@@ -426,9 +405,8 @@ Merci d'accepter le règlement afin d'accéder au serveur.
 
             if (interaction.customId === "rules") {
 
-                await member.roles.add(ACCESS_ROLE).catch(() => {});
-                await member.roles.add(VERIFIED_ROLE).catch(() => {});
-                await member.roles.add(MEMBER_ROLE).catch(() => {});
+                // PAS DE ROLE ICI
+                // LES ROLES SERONT DONNÉS APRÈS CAPTCHA
 
                 await interaction.message.delete().catch(() => {});
 
@@ -453,7 +431,7 @@ Merci d'envoyer le code suivant dans ce salon :
 # ${captcha}
 `);
 
-                await channel.send({
+                await interaction.reply({
                     embeds: [captchaEmbed]
                 });
 
@@ -473,10 +451,6 @@ Merci d'envoyer le code suivant dans ce salon :
 
             if (msg.author.bot) return;
 
-            // =========================================
-            // WRONG CAPTCHA
-            // =========================================
-
             if (
                 member.captchaCode &&
                 msg.content !== member.captchaCode.toString()
@@ -495,6 +469,14 @@ Merci d'envoyer le code suivant dans ce salon :
                 msg.content === member.captchaCode.toString()
             ) {
 
+                // =========================================
+                // ROLES APRÈS CAPTCHA
+                // =========================================
+
+                await member.roles.add(ACCESS_ROLE).catch(() => {});
+                await member.roles.add(VERIFIED_ROLE).catch(() => {});
+                await member.roles.add(MEMBER_ROLE).catch(() => {});
+
                 const successEmbed = new EmbedBuilder()
 
                     .setColor("#57f287")
@@ -505,7 +487,7 @@ Merci d'envoyer le code suivant dans ce salon :
 Ton onboarding est terminé.
 
 Bienvenue sur Pyxar.
-Redirection vers le serveur...
+Tu as maintenant accès au serveur.
 `);
 
                 await channel.send({
@@ -521,10 +503,12 @@ Redirection vers le serveur...
 
                 if (bienvenue) {
 
-                    await bienvenue.send({
-                        content:
-                        `✨ ${member} a terminé son onboarding.`
-                    });
+                    await member.send(`
+✅ Ton onboarding est terminé.
+
+➡️ Rendez-vous ici :
+<#${BIENVENUE_CHANNEL}>
+`).catch(() => {});
 
                 }
 
