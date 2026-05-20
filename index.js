@@ -1,4 +1,5 @@
 const express = require("express");
+
 const {
     Client,
     GatewayIntentBits,
@@ -7,59 +8,112 @@ const {
 
 require("dotenv").config();
 
-const bienvenue = require("./events/bienvenue");
+// =========================
+// EVENTS
+// =========================
+
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
+
+// =========================
+// EXPRESS
+// =========================
 
 const app = express();
 
 const PORT = 3000;
 
-// ===== WEB SERVER =====
+// =========================
+// WEB SERVER
+// =========================
+
 app.get("/", (req, res) => {
-    res.send("Pixar Bot Online");
+
+    res.send("Pyxar Bot Online");
+
 });
 
 app.listen(PORT, () => {
+
     console.log(`🌐 Web server running on port ${PORT}`);
+
 });
 
-// ===== DISCORD CLIENT =====
+// =========================
+// DISCORD CLIENT
+// =========================
+
 const client = new Client({
+
     intents: [
+
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent
+
     ],
+
     partials: [
+
         Partials.Channel
+
     ]
+
 });
 
-// ===== READY =====
-client.once("clientReady", () => {
+// =========================
+// READY
+// =========================
+
+client.once("clientReady", async () => {
+
     console.log(`✅ Logged as ${client.user.tag}`);
-});
-ticketSystem(client);
-// ===== MEMBER JOIN =====
-client.on("guildMemberAdd", async (member) => {
-    onboarding(client, member);
+
+    // =========================
+    // LOAD SYSTEMS
+    // =========================
+
+    ticketSystem(client);
+
 });
 
-// ===== PING =====
+// =========================
+// MEMBER JOIN
+// =========================
+
+client.on("guildMemberAdd", async (member) => {
+
+    onboarding(client, member);
+
+});
+
+// =========================
+// MESSAGE CREATE
+// =========================
+
 client.on("messageCreate", async (message) => {
 
+    // Ignore bots
     if (message.author.bot) return;
+
+    // =========================
+    // PING COMMAND
+    // =========================
 
     if (message.content === "!ping") {
 
-        const ping = Date.now() - message.createdTimestamp;
+        const ping =
+            Date.now() - message.createdTimestamp;
 
         message.reply(`🏓 Pong : ${ping}ms`);
 
     }
 
 });
+
+// =========================
+// LOGIN
+// =========================
 
 client.login(process.env.TOKEN);
