@@ -1,10 +1,4 @@
-// =====================================================
-// events/ticket.js
-// SYSTÈME TICKETS PYXAR V2
-// =====================================================
-
 const {
-
     EmbedBuilder,
     ActionRowBuilder,
     StringSelectMenuBuilder,
@@ -15,154 +9,155 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle
-
 } = require("discord.js");
-
-const config = require("../data/ticketConfig");
-
-// =====================================================
-// COOLDOWN
-// =====================================================
-
-const cooldowns = new Map();
-
-// =====================================================
-// MODULE EXPORT
-// =====================================================
 
 module.exports = async (client) => {
 
-    // =====================================================
-    // PANEL
-    // =====================================================
+    // =========================================
+    // CONFIG
+    // =========================================
+
+    const TICKET_CHANNEL = "1505330772343656680";
+
+    const STAFF_CATEGORY = "1505559323105951744";
+    const JOUEUR_CATEGORY = "1505559260975595753";
+    const AUDIO_CATEGORY = "1506771653621710848";
+    const AIDE_CATEGORY = "1505559399442284605";
+    const AUTRE_CATEGORY = "1506771703769071726";
+
+    const STAFF_ROLES = [
+        "1505330692106485781",
+        "1505330696619688027",
+        "1505330697806811271"
+    ];
+
+    const JOUEUR_ROLES = [
+        "1505330692106485781",
+        "1505330696619688027",
+        "1505330697806811271",
+        "1505330699752706269",
+        "1505330700654477403"
+    ];
+
+    // =========================================
+    // ANTI SPAM
+    // =========================================
+
+    const ticketCooldown = new Map();
+
+    // =========================================
+    // READY
+    // =========================================
 
     client.once("clientReady", async () => {
 
-        try {
+        const channel = client.channels.cache.get(TICKET_CHANNEL);
 
-            const panelChannel =
-                client.channels.cache.get(config.PANEL_CHANNEL);
+        if (!channel) return;
 
-            if (!panelChannel) return;
+        // =========================================
+        // CHECK PANEL
+        // =========================================
 
-            const embed = new EmbedBuilder()
+        const messages = await channel.messages.fetch({ limit: 10 });
 
-                .setColor("#ffb347")
+        const alreadyExists = messages.find(
+            msg =>
+                msg.author.id === client.user.id &&
+                msg.embeds.length > 0 &&
+                msg.embeds[0].title === "🎫 Support Pyxar"
+        );
 
-                .setTitle("🎫 Centre de support Pyxar")
+        if (alreadyExists) return;
 
-                .setDescription(`
-Bienvenue dans le centre de support officiel de **Pyxar**.
+        // =========================================
+        // MENU
+        // =========================================
 
-Sélectionnez la catégorie correspondant à votre demande afin d'ouvrir un ticket.
+        const menu = new StringSelectMenuBuilder()
 
-━━━━━━━━━━━━━━━━━━
+            .setCustomId("ticket_select")
 
-🎓 Recrutement Staff  
-🎮 Recrutement Joueur  
-🎬 Recrutement Audiovisuel  
-❓ Assistance  
-🤝 Partenariat  
-📌 Autre
+            .setPlaceholder("🎫 Sélectionne une catégorie")
 
-━━━━━━━━━━━━━━━━━━
+            .addOptions([
+                {
+                    label: "Recrutement Staff",
+                    value: "staff",
+                    emoji: "🛡️",
+                    description: "Postule pour rejoindre le staff"
+                },
+                {
+                    label: "Recrutement Joueur",
+                    value: "joueur",
+                    emoji: "🎮",
+                    description: "Postule comme joueur"
+                },
+                {
+                    label: "Audiovisuel",
+                    value: "audiovisuel",
+                    emoji: "🎬",
+                    description: "Graphisme / montage / caster"
+                },
+                {
+                    label: "Assistance",
+                    value: "aide",
+                    emoji: "🆘",
+                    description: "Besoin d'aide"
+                },
+                {
+                    label: "Partenariat",
+                    value: "partenariat",
+                    emoji: "🤝",
+                    description: "Demande de partenariat"
+                },
+                {
+                    label: "Autre",
+                    value: "autre",
+                    emoji: "📩",
+                    description: "Autre demande"
+                }
+            ]);
 
-Nos équipes vous répondront rapidement.
-                `)
+        const row = new ActionRowBuilder().addComponents(menu);
 
-                .setFooter({
-                    text: "Pyxar Support"
-                });
+        const embed = new EmbedBuilder()
 
-            const menu =
-                new ActionRowBuilder()
+            .setColor("#ffb347")
 
-                    .addComponents(
+            .setTitle("🎫 Support Pyxar")
 
-                        new StringSelectMenuBuilder()
+            .setDescription(`
+Bienvenue dans le système de tickets officiel de **Pyxar**.
 
-                            .setCustomId("ticket_select")
+Sélectionne une catégorie afin d'ouvrir un ticket.
 
-                            .setPlaceholder("Sélectionne une catégorie")
+⚠️ Merci d'éviter le spam.
+⚠️ Deux tickets maximum toutes les 10 minutes.
 
-                            .addOptions([
+Nos équipes te répondront dès que possible.
+`)
 
-                                {
-                                    label: "Recrutement Staff",
-                                    value: "staff",
-                                    emoji: "🎓"
-                                },
+            .setFooter({
+                text: "Pyxar Support"
+            });
 
-                                {
-                                    label: "Recrutement Joueur",
-                                    value: "joueur",
-                                    emoji: "🎮"
-                                },
-
-                                {
-                                    label: "Recrutement Audiovisuel",
-                                    value: "audiovisuel",
-                                    emoji: "🎬"
-                                },
-
-                                {
-                                    label: "Assistance",
-                                    value: "aide",
-                                    emoji: "❓"
-                                },
-
-                                {
-                                    label: "Partenariat",
-                                    value: "partenariat",
-                                    emoji: "🤝"
-                                },
-
-                                {
-                                    label: "Autre",
-                                    value: "autre",
-                                    emoji: "📌"
-                                }
-
-                            ])
-
-                    );
-
-            const messages =
-                await panelChannel.messages.fetch();
-
-            const already =
-                messages.find(m =>
-                    m.author.id === client.user.id
-                );
-
-            if (!already) {
-
-                await panelChannel.send({
-
-                    embeds: [embed],
-                    components: [menu]
-
-                });
-
-            }
-
-        } catch (err) {
-
-            console.log(err);
-
-        }
+        await channel.send({
+            embeds: [embed],
+            components: [row]
+        });
 
     });
 
-    // =====================================================
+    // =========================================
     // INTERACTION CREATE
-    // =====================================================
+    // =========================================
 
     client.on("interactionCreate", async (interaction) => {
 
-        // =====================================================
-        // SELECT MENU
-        // =====================================================
+        // =========================================
+        // MENU
+        // =========================================
 
         if (
             interaction.isStringSelectMenu() &&
@@ -171,372 +166,302 @@ Nos équipes vous répondront rapidement.
 
             const userId = interaction.user.id;
 
-            // =====================================================
+            // =========================================
             // COOLDOWN
-            // =====================================================
+            // =========================================
 
-            if (cooldowns.has(userId)) {
+            if (!ticketCooldown.has(userId)) {
+                ticketCooldown.set(userId, []);
+            }
+
+            const timestamps = ticketCooldown.get(userId);
+
+            const now = Date.now();
+
+            const filtered = timestamps.filter(
+                time => now - time < 600000
+            );
+
+            if (filtered.length >= 2) {
 
                 return interaction.reply({
-
                     content:
-                    "❌ Tu dois attendre avant de créer un autre ticket.",
-
+                    "❌ Tu as atteint la limite de 2 tickets en 10 minutes.",
                     ephemeral: true
-
                 });
 
             }
 
-            cooldowns.set(userId, true);
+            filtered.push(now);
 
-            setTimeout(() => {
+            ticketCooldown.set(userId, filtered);
 
-                cooldowns.delete(userId);
+            const type = interaction.values[0];
 
-            }, 600000);
-
-            // =====================================================
-            // CHECK EXISTING
-            // =====================================================
-
-            const existing =
-                interaction.guild.channels.cache.find(c =>
-                    c.name.includes(interaction.user.username.toLowerCase())
-                );
-
-            if (existing) {
-
-                return interaction.reply({
-
-                    content:
-                    "❌ Tu possèdes déjà un ticket ouvert.",
-
-                    ephemeral: true
-
-                });
-
-            }
-
-            const choice = interaction.values[0];
+            // =========================================
+            // CATEGORY
+            // =========================================
 
             let category;
-            let roles;
+            let roles = [];
 
-            // =====================================================
-            // CATEGORY + ROLES
-            // =====================================================
+            switch (type) {
 
-            if (choice === "staff") {
+                case "staff":
+                    category = STAFF_CATEGORY;
+                    roles = STAFF_ROLES;
+                    break;
 
-                category = config.CATEGORIES.staff;
-                roles = config.ROLES.staff;
+                case "joueur":
+                    category = JOUEUR_CATEGORY;
+                    roles = JOUEUR_ROLES;
+                    break;
 
-            }
+                case "audiovisuel":
+                    category = AUDIO_CATEGORY;
+                    roles = STAFF_ROLES;
+                    break;
 
-            if (choice === "joueur") {
+                case "aide":
+                    category = AIDE_CATEGORY;
+                    roles = STAFF_ROLES;
+                    break;
 
-                category = config.CATEGORIES.joueur;
-                roles = config.ROLES.joueur;
-
-            }
-
-            if (choice === "audiovisuel") {
-
-                category = config.CATEGORIES.audiovisuel;
-                roles = config.ROLES.audiovisuel;
-
-            }
-
-            if (choice === "aide") {
-
-                category = config.CATEGORIES.aide;
-                roles = config.ROLES.aide;
+                default:
+                    category = AUTRE_CATEGORY;
+                    roles = STAFF_ROLES;
 
             }
 
-            if (
-                choice === "partenariat" ||
-                choice === "autre"
-            ) {
-
-                category = config.CATEGORIES.autre;
-                roles = config.ROLES.autre;
-
-            }
-
-            // =====================================================
+            // =========================================
             // CREATE CHANNEL
-            // =====================================================
+            // =========================================
 
-            const channel =
-                await interaction.guild.channels.create({
+            const ticket = await interaction.guild.channels.create({
 
-                    name:
-                    `ticket-${interaction.user.username}`,
+                name:
+                `${type}-${interaction.user.username}`,
 
-                    type: ChannelType.GuildText,
+                type: ChannelType.GuildText,
 
-                    parent: category,
+                parent: category,
 
-                    permissionOverwrites: [
+                permissionOverwrites: [
 
-                        {
-                            id: interaction.guild.id,
+                    {
+                        id: interaction.guild.id,
+                        deny: [
+                            PermissionsBitField.Flags.ViewChannel
+                        ]
+                    },
 
-                            deny: [
-                                PermissionsBitField.Flags.ViewChannel
-                            ]
-                        },
+                    {
+                        id: interaction.user.id,
+                        allow: [
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.ReadMessageHistory
+                        ]
+                    },
 
-                        {
-                            id: interaction.user.id,
+                    ...roles.map(role => ({
+                        id: role,
+                        allow: [
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
+                            PermissionsBitField.Flags.ReadMessageHistory
+                        ]
+                    }))
 
-                            allow: [
+                ]
 
-                                PermissionsBitField.Flags.ViewChannel,
-                                PermissionsBitField.Flags.SendMessages,
-                                PermissionsBitField.Flags.ReadMessageHistory
+            });
 
-                            ]
-                        },
+            // =========================================
+            // BUTTONS
+            // =========================================
 
-                        ...roles.map(roleId => ({
+            const buttons = new ActionRowBuilder()
 
-                            id: roleId,
+                .addComponents(
 
-                            allow: [
+                    new ButtonBuilder()
+                        .setCustomId("claim")
+                        .setLabel("Claim")
+                        .setEmoji("📌")
+                        .setStyle(ButtonStyle.Primary),
 
-                                PermissionsBitField.Flags.ViewChannel,
-                                PermissionsBitField.Flags.SendMessages,
-                                PermissionsBitField.Flags.ReadMessageHistory
+                    new ButtonBuilder()
+                        .setCustomId("close")
+                        .setLabel("Fermer")
+                        .setEmoji("🔒")
+                        .setStyle(ButtonStyle.Secondary),
 
-                            ]
+                    new ButtonBuilder()
+                        .setCustomId("delete")
+                        .setLabel("Supprimer")
+                        .setEmoji("🗑️")
+                        .setStyle(ButtonStyle.Danger),
 
-                        }))
+                    new ButtonBuilder()
+                        .setCustomId("rename")
+                        .setLabel("Rename")
+                        .setEmoji("✏️")
+                        .setStyle(ButtonStyle.Success),
 
-                    ]
+                    new ButtonBuilder()
+                        .setCustomId("help")
+                        .setLabel("Aide")
+                        .setEmoji("❓")
+                        .setStyle(ButtonStyle.Secondary)
 
+                );
+
+            // =========================================
+            // EMBED
+            // =========================================
+
+            const ticketEmbed = new EmbedBuilder()
+
+                .setColor("#ffb347")
+
+                .setTitle("🎫 Ticket Ouvert")
+
+                .setDescription(`
+Bienvenue ${interaction.user}
+
+Merci d'avoir ouvert un ticket.
+
+Notre équipe va te répondre rapidement.
+
+📌 Merci de compléter correctement le formulaire.
+`)
+
+                .setFooter({
+                    text: "Pyxar Ticket System"
                 });
 
-            // =====================================================
-            // BUTTONS
-            // =====================================================
+            await ticket.send({
+                content:
+                `${interaction.user} ${roles.map(r => `<@&${r}>`).join(" ")}`,
+                embeds: [ticketEmbed],
+                components: [buttons]
+            });
 
-            const buttons =
-                new ActionRowBuilder()
+            // =========================================
+            // FORM STAFF
+            // =========================================
+
+            if (type === "staff") {
+
+                const embed = new EmbedBuilder()
+
+                    .setColor("#ffb347")
+
+                    .setTitle("🛡️ Recrutement Staff")
+
+                    .setDescription(`
+Merci de répondre au formulaire suivant :
+
+• Pseudo Discord
+• Âge
+• Pays
+• Motivations
+• Expériences
+• Disponibilités
+• Gestion des conflits
+• Pourquoi toi ?
+
+Merci d'envoyer tes réponses directement dans le ticket.
+`);
+
+                await ticket.send({
+                    embeds: [embed]
+                });
+
+            }
+
+            // =========================================
+            // FORM JOUEUR
+            // =========================================
+
+            if (type === "joueur") {
+
+                const testButton = new ActionRowBuilder()
 
                     .addComponents(
 
                         new ButtonBuilder()
-                            .setCustomId("claim_ticket")
-                            .setLabel("🔒 Claim")
-                            .setStyle(ButtonStyle.Primary),
-
-                        new ButtonBuilder()
-                            .setCustomId("close_ticket")
-                            .setLabel("🛑 Fermer")
-                            .setStyle(ButtonStyle.Secondary),
-
-                        new ButtonBuilder()
-                            .setCustomId("delete_ticket")
-                            .setLabel("🗑️ Supprimer")
-                            .setStyle(ButtonStyle.Danger),
-
-                        new ButtonBuilder()
-                            .setCustomId("rename_ticket")
-                            .setLabel("✏️ Rename")
-                            .setStyle(ButtonStyle.Success),
-
-                        new ButtonBuilder()
-                            .setCustomId("help_ticket")
-                            .setLabel("❓ Aide")
-                            .setStyle(ButtonStyle.Secondary)
+                            .setCustomId("test_modo")
+                            .setLabel("Test Modérateur")
+                            .setEmoji("🧪")
+                            .setStyle(ButtonStyle.Success)
 
                     );
 
-            // =====================================================
-            // EMBED
-            // =====================================================
-
-            const embed =
-                new EmbedBuilder()
+                const embed = new EmbedBuilder()
 
                     .setColor("#ffb347")
 
-                    .setTitle("🎫 Ticket ouvert")
+                    .setTitle("🎮 Recrutement Joueur")
 
                     .setDescription(`
-Bienvenue dans votre ticket Pyxar.
-
-Merci de compléter correctement le formulaire ci-dessous.
-
-Un membre du staff prendra votre demande en charge rapidement.
-                    `)
-
-                    .setFooter({
-                        text: "Pyxar Support"
-                    });
-
-            await channel.send({
-
-                content:
-                `${interaction.user}`,
-
-                embeds: [embed],
-
-                components: [buttons]
-
-            });
-
-            // =====================================================
-            // FORMULAIRES
-            // =====================================================
-
-            if (choice === "staff") {
-
-                await channel.send({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-
-                            .setColor("#ffb347")
-
-                            .setTitle("🎓 Formulaire Staff")
-
-                            .setDescription(`
-🔹 Informations générales
-
-• Pseudo Discord
-• Âge
-• Pays / Fuseau horaire
-• Expérience Discord
-• Motivations
-• Qualités / Défauts
-
-🔹 Expérience & compétences
-
-• Expérience staff
-• Bots maîtrisés
-• Permissions Discord
-
-🔹 Disponibilités
-
-• Horaires
-• Activité
-
-🔹 Gestion des situations
-
-• Toxicité
-• Raid
-• Sanctions
-• Abuse permissions
-
-🔹 Sécurité
-
-• ToS Discord
-• Scams / phishing
-
-Merci de répondre sérieusement.
-                            `)
-
-                    ]
-
-                });
-
-            }
-
-            if (choice === "joueur") {
-
-                const testButtons =
-                    new ActionRowBuilder()
-
-                        .addComponents(
-
-                            new ButtonBuilder()
-                                .setCustomId("test_moderateur")
-                                .setLabel("🧪 Test Modérateur")
-                                .setStyle(ButtonStyle.Primary)
-
-                        );
-
-                await channel.send({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-
-                            .setColor("#ffb347")
-
-                            .setTitle("🎮 Formulaire Joueur")
-
-                            .setDescription(`
-Merci de répondre aux questions suivantes :
+Merci de répondre au formulaire :
 
 • Pseudo Epic Games
 • Âge
-• PR Overall / EU
 • Plateforme
-• Rôle in-game
-• Résultats tournois
+• PR
+• Expérience
 • Points forts
-• Points faibles
 • Objectifs
 • Disponibilités
+`);
 
-Merci d'être précis.
-                            `)
-
-                    ],
-
-                    components: [testButtons]
-
+                await ticket.send({
+                    embeds: [embed],
+                    components: [testButton]
                 });
 
             }
 
-            if (choice === "audiovisuel") {
+            // =========================================
+            // AUDIO
+            // =========================================
 
-                await channel.send({
+            if (type === "audiovisuel") {
 
-                    embeds: [
+                const embed = new EmbedBuilder()
 
-                        new EmbedBuilder()
+                    .setColor("#ffb347")
 
-                            .setColor("#ffb347")
+                    .setTitle("🎬 Recrutement Audiovisuel")
 
-                            .setTitle("🎬 Formulaire Audiovisuel")
+                    .setDescription(`
+Merci de préciser :
 
-                            .setDescription(`
-Merci de sélectionner le rôle audiovisuel souhaité :
+• Ton rôle
+• Tes logiciels
+• Ton portfolio
+• Tes créations
+• Tes disponibilités
+• Ton expérience
+`);
 
-🎤 Caster
-🎨 Graphiste
-✂️ Monteur
-📸 Media Maker
-🎥 Content Creator
-🖥️ Thumbnail Designer
-
-Puis remplissez les informations demandées :
-
-• Âge
-• Expérience
-• Logiciels maîtrisés
-• Portfolio
-• Motivations
-                            `)
-
-                    ]
-
+                await ticket.send({
+                    embeds: [embed]
                 });
 
             }
+
+            // =========================================
+            // REPLY
+            // =========================================
 
             await interaction.reply({
 
                 content:
-                `✅ Ticket créé : ${channel}`,
+                `✅ Ticket créé : ${ticket}`,
 
                 ephemeral: true
 
@@ -544,41 +469,58 @@ Puis remplissez les informations demandées :
 
         }
 
-        // =====================================================
+        // =========================================
         // BUTTONS
-        // =====================================================
+        // =========================================
 
         if (interaction.isButton()) {
 
-            // =====================================================
             // CLAIM
-            // =====================================================
-
-            if (interaction.customId === "claim_ticket") {
+            if (interaction.customId === "claim") {
 
                 await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-
-                            .setColor("#57f287")
-
-                            .setDescription(`
-🔒 Ticket claim par ${interaction.user}
-                            `)
-
-                    ]
-
+                    content:
+                    `📌 Ticket claim par ${interaction.user}`,
+                    ephemeral: false
                 });
 
             }
 
-            // =====================================================
-            // HELP
-            // =====================================================
+            // CLOSE
+            if (interaction.customId === "close") {
 
-            if (interaction.customId === "help_ticket") {
+                await interaction.channel.permissionOverwrites.edit(
+                    interaction.channel.guild.roles.everyone,
+                    {
+                        SendMessages: false
+                    }
+                );
+
+                await interaction.reply({
+                    content:
+                    "🔒 Ticket fermé."
+                });
+
+            }
+
+            // DELETE
+            if (interaction.customId === "delete") {
+
+                await interaction.reply({
+                    content:
+                    "🗑️ Suppression du ticket dans 5 secondes..."
+                });
+
+                setTimeout(async () => {
+
+                    await interaction.channel.delete().catch(() => {});
+
+                }, 5000);
+
+            }
+
+            // HELP
+            if (interaction.customId === "help") {
 
                 await interaction.reply({
 
@@ -591,18 +533,14 @@ Puis remplissez les informations demandées :
                             .setTitle("❓ Assistance")
 
                             .setDescription(`
-Si vous êtes sur téléphone :
+📱 Téléphone :
+Appuie sur "Répondre".
 
-1. Répondez directement dans le ticket.
-2. Séparez bien vos réponses.
-3. Prenez votre temps.
+💻 PC :
+Écris directement dans le ticket.
 
-Si vous êtes sur PC :
-
-1. Copiez le formulaire.
-2. Répondez dessous.
-3. Envoyez le tout dans le ticket.
-                            `)
+Notre équipe peut t'aider à remplir le formulaire.
+`)
 
                     ],
 
@@ -612,59 +550,8 @@ Si vous êtes sur PC :
 
             }
 
-            // =====================================================
-            // CLOSE
-            // =====================================================
-
-            if (interaction.customId === "close_ticket") {
-
-                await interaction.reply({
-
-                    embeds: [
-
-                        new EmbedBuilder()
-
-                            .setColor("#ff0000")
-
-                            .setDescription(`
-🛑 Ticket fermé par ${interaction.user}
-                            `)
-
-                    ]
-
-                });
-
-            }
-
-            // =====================================================
-            // DELETE
-            // =====================================================
-
-            if (interaction.customId === "delete_ticket") {
-
-                await interaction.reply({
-
-                    content:
-                    "🗑️ Suppression du ticket...",
-
-                    ephemeral: true
-
-                });
-
-                setTimeout(async () => {
-
-                    await interaction.channel.delete()
-                        .catch(() => {});
-
-                }, 2000);
-
-            }
-
-            // =====================================================
-            // TEST MODERATEUR
-            // =====================================================
-
-            if (interaction.customId === "test_moderateur") {
+            // TEST MODERATOR
+            if (interaction.customId === "test_modo") {
 
                 await interaction.reply({
 
@@ -677,23 +564,74 @@ Si vous êtes sur PC :
                             .setTitle("🧪 Test Modérateur")
 
                             .setDescription(`
-Le candidat doit maintenant être évalué sur :
+Le candidat doit maintenant gérer une fausse situation.
 
-• Gestion
-• Communication
-• Réactivité
-• Maturité
-• Sanctions
-• Connaissances Discord
-
-Le staff pourra ensuite donner son avis.
-                            `)
+Évalue :
+• Son calme
+• Sa communication
+• Ses sanctions
+• Son professionnalisme
+`)
 
                     ]
 
                 });
 
             }
+
+            // RENAME
+            if (interaction.customId === "rename") {
+
+                const modal = new ModalBuilder()
+
+                    .setCustomId("rename_modal")
+
+                    .setTitle("Renommer le ticket");
+
+                const input = new TextInputBuilder()
+
+                    .setCustomId("ticket_name")
+
+                    .setLabel("Nouveau nom")
+
+                    .setStyle(TextInputStyle.Short)
+
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(input)
+                );
+
+                await interaction.showModal(modal);
+
+            }
+
+        }
+
+        // =========================================
+        // MODAL
+        // =========================================
+
+        if (
+            interaction.isModalSubmit() &&
+            interaction.customId === "rename_modal"
+        ) {
+
+            const name =
+                interaction.fields.getTextInputValue(
+                    "ticket_name"
+                );
+
+            await interaction.channel.setName(name);
+
+            await interaction.reply({
+
+                content:
+                `✏️ Ticket renommé en \`${name}\``,
+
+                ephemeral: true
+
+            });
 
         }
 
