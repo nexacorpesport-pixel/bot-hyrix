@@ -9,6 +9,7 @@ require("dotenv").config();
 
 const bienvenue = require("./events/bienvenue");
 const onboarding = require("./events/onboarding");
+const ticketSystem = require("./events/ticket");
 
 const app = express();
 
