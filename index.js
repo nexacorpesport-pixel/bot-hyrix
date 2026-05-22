@@ -14,6 +14,8 @@ require("dotenv").config();
 
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
+const voiceTemp = require("./events/voiceTemp");
+voiceTemp(client);
 
 // =========================
 // EXPRESS
