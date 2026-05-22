@@ -9,25 +9,11 @@ const {
 require("dotenv").config();
 
 // =========================
-// EVENTS
-// =========================
-
-const onboarding = require("./events/onboarding");
-const ticketSystem = require("./events/ticket");
-const voiceTemp = require("./events/voiceTemp");
-voiceTemp(client);
-
-// =========================
 // EXPRESS
 // =========================
 
 const app = express();
-
 const PORT = 3000;
-
-// =========================
-// WEB SERVER
-// =========================
 
 app.get("/", (req, res) => {
     res.send("Pyxar Bot Online");
@@ -46,7 +32,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates // 🔥 OBLIGATOIRE POUR VOICE SYSTEM
     ],
     partials: [
         Partials.Channel
@@ -54,18 +41,24 @@ const client = new Client({
 });
 
 // =========================
-// READY (CORRIGÉ ICI)
+// EVENTS
+// =========================
+
+const onboarding = require("./events/onboarding");
+const ticketSystem = require("./events/ticket");
+const voiceTemp = require("./events/voiceTemp"); // ✅ juste import
+
+// =========================
+// READY
 // =========================
 
 client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
-    // =========================
-    // LOAD SYSTEMS
-    // =========================
-
+    // LOAD SYSTEMS ICI (PAS AVANT)
     ticketSystem(client);
+    voiceTemp(client); // ✅ FIX ICI
 
 });
 
@@ -83,12 +76,7 @@ client.on("guildMemberAdd", async (member) => {
 
 client.on("messageCreate", async (message) => {
 
-    // Ignore bots
     if (message.author.bot) return;
-
-    // =========================
-    // PING COMMAND
-    // =========================
 
     if (message.content === "!ping") {
         const ping = Date.now() - message.createdTimestamp;
