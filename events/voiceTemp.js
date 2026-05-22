@@ -7,7 +7,7 @@ const {
     ButtonStyle
 } = require("discord.js");
 
-const TRIGGER_CHANNEL = "1505330764823265350";
+const TRIGGER_CHANNEL = "1507467019715481731";
 const TEMP_CATEGORY = "1505330761153380476";
 
 const tempChannels = new Map();
