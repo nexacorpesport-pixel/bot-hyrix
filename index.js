@@ -13,6 +13,7 @@ require("dotenv").config();
 // =========================
 
 const app = express();
+
 const PORT = 3000;
 
 app.get("/", (req, res) => {
@@ -28,6 +29,7 @@ app.listen(PORT, () => {
 // =========================
 
 const client = new Client({
+
     intents: [
 
         GatewayIntentBits.Guilds,
@@ -41,33 +43,37 @@ const client = new Client({
     partials: [
         Partials.Channel
     ]
+
 });
 
 // =========================
-// EVENTS IMPORT
+// IMPORT EVENTS
 // =========================
 
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
-
-// =========================
-// LOAD SYSTEMS
-// =========================
-
-// ⚠️ IMPORTANT
-// ON CHARGE LES EVENTS AVANT LE READY
-
-ticketSystem(client);
-voiceTemp(client);
+const antiLink = require("./events/moderation/antilink");
 
 // =========================
 // READY
 // =========================
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
+
+    // =========================
+    // LOAD SYSTEMS
+    // =========================
+
+    ticketSystem(client);
+
+    voiceTemp(client);
+
+    antiLink(client);
+
+    console.log("✅ Tous les systèmes chargés.");
 
 });
 
@@ -95,7 +101,8 @@ client.on("messageCreate", async (message) => {
 
     if (message.content === "!ping") {
 
-        const ping = Date.now() - message.createdTimestamp;
+        const ping =
+            Date.now() - message.createdTimestamp;
 
         message.reply(`🏓 Pong : ${ping}ms`);
 
@@ -104,15 +111,21 @@ client.on("messageCreate", async (message) => {
 });
 
 // =========================
-// ERROR HANDLER
+// ERROR HANDLERS
 // =========================
 
 process.on("unhandledRejection", (err) => {
-    console.log("❌ Unhandled Rejection:", err);
+
+    console.log("❌ Unhandled Rejection:");
+    console.log(err);
+
 });
 
 process.on("uncaughtException", (err) => {
-    console.log("❌ Uncaught Exception:", err);
+
+    console.log("❌ Uncaught Exception:");
+    console.log(err);
+
 });
 
 // =========================
