@@ -11,9 +11,7 @@ require("dotenv").config();
 // =========================
 // EXPRESS
 // =========================
-
 const app = express();
-
 const PORT = 3000;
 
 app.get("/", (req, res) => {
@@ -27,17 +25,14 @@ app.listen(PORT, () => {
 // =========================
 // DISCORD CLIENT
 // =========================
-
 const client = new Client({
 
     intents: [
-
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildVoiceStates
-
     ],
 
     partials: [
@@ -49,87 +44,62 @@ const client = new Client({
 // =========================
 // IMPORT EVENTS
 // =========================
-
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
-const antiLink = require("./events/moderation/antilink");
+const moderation = require("./events/moderation"); // ✅ MODÉRATION COMPLETE
 
 // =========================
 // READY
 // =========================
-
-client.once("clientReady", async () => {
+client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
-    // =========================
     // LOAD SYSTEMS
-    // =========================
-
     ticketSystem(client);
-
     voiceTemp(client);
-
-    antiLink(client);
+    moderation(client); // ✅ IMPORTANT
 
     console.log("✅ Tous les systèmes chargés.");
-
 });
 
 // =========================
 // MEMBER JOIN
 // =========================
-
 client.on("guildMemberAdd", async (member) => {
-
     onboarding(client, member);
-
 });
 
 // =========================
-// MESSAGE CREATE
+// MESSAGE CREATE (PING ONLY)
 // =========================
-
 client.on("messageCreate", async (message) => {
 
     if (message.author.bot) return;
 
-    // =========================
-    // PING
-    // =========================
-
     if (message.content === "!ping") {
 
-        const ping =
-            Date.now() - message.createdTimestamp;
+        const ping = Date.now() - message.createdTimestamp;
 
-        message.reply(`🏓 Pong : ${ping}ms`);
-
+        return message.reply(`🏓 Pong : ${ping}ms`);
     }
-
 });
 
 // =========================
 // ERROR HANDLERS
 // =========================
-
 process.on("unhandledRejection", (err) => {
-
     console.log("❌ Unhandled Rejection:");
     console.log(err);
-
 });
 
 process.on("uncaughtException", (err) => {
-
     console.log("❌ Uncaught Exception:");
     console.log(err);
-
 });
 
 // =========================
 // LOGIN
 // =========================
-
 client.login(process.env.TOKEN);
