@@ -29,24 +29,37 @@ app.listen(PORT, () => {
 
 const client = new Client({
     intents: [
+
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates // 🔥 OBLIGATOIRE POUR VOICE SYSTEM
+        GatewayIntentBits.GuildVoiceStates
+
     ],
+
     partials: [
         Partials.Channel
     ]
 });
 
 // =========================
-// EVENTS
+// EVENTS IMPORT
 // =========================
 
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
-const voiceTemp = require("./events/voiceTemp"); // ✅ juste import
+const voiceTemp = require("./events/voiceTemp");
+
+// =========================
+// LOAD SYSTEMS
+// =========================
+
+// ⚠️ IMPORTANT
+// ON CHARGE LES EVENTS AVANT LE READY
+
+ticketSystem(client);
+voiceTemp(client);
 
 // =========================
 // READY
@@ -56,10 +69,6 @@ client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
-    // LOAD SYSTEMS ICI (PAS AVANT)
-    ticketSystem(client);
-    voiceTemp(client); // ✅ FIX ICI
-
 });
 
 // =========================
@@ -67,7 +76,9 @@ client.once("ready", async () => {
 // =========================
 
 client.on("guildMemberAdd", async (member) => {
+
     onboarding(client, member);
+
 });
 
 // =========================
@@ -78,11 +89,30 @@ client.on("messageCreate", async (message) => {
 
     if (message.author.bot) return;
 
+    // =========================
+    // PING
+    // =========================
+
     if (message.content === "!ping") {
+
         const ping = Date.now() - message.createdTimestamp;
+
         message.reply(`🏓 Pong : ${ping}ms`);
+
     }
 
+});
+
+// =========================
+// ERROR HANDLER
+// =========================
+
+process.on("unhandledRejection", (err) => {
+    console.log("❌ Unhandled Rejection:", err);
+});
+
+process.on("uncaughtException", (err) => {
+    console.log("❌ Uncaught Exception:", err);
 });
 
 // =========================
