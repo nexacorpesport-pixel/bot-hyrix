@@ -38,16 +38,16 @@ const client = new Client({
     partials: [
         Partials.Channel
     ]
-
 });
 
 // =========================
 // IMPORT EVENTS
 // =========================
+const antiSpam = require("./events/antiSpam");
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
-const moderation = require("./events/moderation"); // ✅ MODÉRATION COMPLETE
+const moderation = require("./events/moderation");
 
 // =========================
 // READY
@@ -56,12 +56,19 @@ client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
-    // LOAD SYSTEMS
-    ticketSystem(client);
-    voiceTemp(client);
-    moderation(client); // ✅ IMPORTANT
+    try {
 
-    console.log("✅ Tous les systèmes chargés.");
+        // LOAD SYSTEMS
+        ticketSystem(client);
+        voiceTemp(client);
+        antiSpam(client);      // ✅ AJOUT IMPORTANT
+        moderation(client);
+
+        console.log("✅ Tous les systèmes chargés.");
+
+    } catch (err) {
+        console.log("❌ Erreur chargement systèmes :", err);
+    }
 });
 
 // =========================
