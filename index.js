@@ -53,7 +53,7 @@ const client = new Client({
 const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
-const antiLink = require("./events/moderation/antilink");
+const antiLink = require("./commands/moderation/antilink");
 
 // =========================
 // READY
