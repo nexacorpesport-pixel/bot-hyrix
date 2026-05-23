@@ -1,521 +1,425 @@
 const fs = require("fs");
 const path = require("path");
 
-const {
-    PermissionsBitField,
-    EmbedBuilder
-} = require("discord.js");
+const CONFIG_PATH = path.join(__dirname, "../data/antilink.json");
 
-const PREFIX = "+";
+// =========================================
+// CREATE FILE
+// =========================================
 
-const dataPath = path.join(__dirname, "../../data/antilink.json");
-
-// =====================================================
-// CREATE JSON IF NOT EXISTS
-// =====================================================
-
-if (!fs.existsSync(dataPath)) {
-
-    fs.writeFileSync(
-        dataPath,
-        JSON.stringify({}, null, 4)
-    );
-
+if (!fs.existsSync(path.join(__dirname, "../data"))) {
+    fs.mkdirSync(path.join(__dirname, "../data"));
 }
 
-// =====================================================
-// LOAD DATA
-// =====================================================
+if (!fs.existsSync(CONFIG_PATH)) {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify({}, null, 4));
+}
+
+// =========================================
+// LOAD / SAVE
+// =========================================
 
 function loadData() {
-
-    return JSON.parse(fs.readFileSync(dataPath));
-
+    return JSON.parse(fs.readFileSync(CONFIG_PATH));
 }
 
 function saveData(data) {
-
-    fs.writeFileSync(
-        dataPath,
-        JSON.stringify(data, null, 4)
-    );
-
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 4));
 }
 
-// =====================================================
-// SCAM DOMAINS
-// =====================================================
+// =========================================
+// DETECTION REGEX
+// =========================================
 
-const scamDomains = [
+const discordInvite =
+    /(discord\.gg|discord\.com\/invite|discordapp\.com\/invite)/gi;
 
-    "dlscord",
-    "d1scord",
-    "discord-free",
-    "steamnitro",
-    "free-nitro",
-    "nitro-free",
-    "stearncornmunity",
-    "disc0rd",
-    "grabify",
-    "iplogger",
-    "bit.ly",
-    "tinyurl",
-    "rb.gy",
-    "cutt.ly"
+const urlRegex =
+    /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
 
-];
+const shorteners =
+    /(bit\.ly|tinyurl\.com|t\.co|goo\.gl|cutt\.ly|rebrand\.ly|grabify\.link|iplogger|2no\.co)/gi;
 
-// =====================================================
-// LINK REGEX
-// =====================================================
+const suspicious =
+    /(grabify|iplogger|token|free-nitro|steamcommunity\-giveaway|nitro-free|dlscord)/gi;
 
-const linkRegex =
-/(https?:\/\/[^\s]+)|(discord\.gg\/[^\s]+)|(discord\.com\/invite\/[^\s]+)|(www\.[^\s]+)/gi;
-
-// =====================================================
-// MODULE EXPORT
-// =====================================================
+// =========================================
+// MODULE
+// =========================================
 
 module.exports = (client) => {
 
     console.log("[ANTILINK] Système chargé.");
 
-    // =====================================================
+    // =========================================
     // MESSAGE CREATE
-    // =====================================================
+    // =========================================
 
     client.on("messageCreate", async (message) => {
 
-        if (!message.guild) return;
+        try {
 
-        if (message.author.bot) return;
+            if (!message.guild) return;
+            if (message.author.bot) return;
 
-        // =====================================================
-        // LOAD GUILD DATA
-        // =====================================================
+            const data = loadData();
 
-        const data = loadData();
+            if (!data[message.guild.id]) return;
 
-        if (!data[message.guild.id]) {
+            const config = data[message.guild.id];
 
-            data[message.guild.id] = {
+            if (!config.enabled) return;
 
-                enabled: false,
-                punishment: "delete",
-                logs: null,
-                whitelistRoles: [],
-                whitelistChannels: []
+            // =========================================
+            // WHITELIST ROLE
+            // =========================================
 
-            };
+            if (config.whitelistRoles?.length) {
 
-            saveData(data);
+                const hasWhitelist = message.member.roles.cache.some(r =>
+                    config.whitelistRoles.includes(r.id)
+                );
+
+                if (hasWhitelist) return;
+            }
+
+            // =========================================
+            // ADMIN BYPASS
+            // =========================================
+
+            if (
+                message.member.permissions.has("Administrator")
+            ) return;
+
+            const content = message.content.toLowerCase();
+
+            let detected = false;
+            let reason = "";
+
+            // =========================================
+            // DISCORD INVITE
+            // =========================================
+
+            if (
+                config.discordInvites &&
+                discordInvite.test(content)
+            ) {
+
+                detected = true;
+                reason = "Invitation Discord";
+            }
+
+            // =========================================
+            // NORMAL LINKS
+            // =========================================
+
+            if (
+                config.links &&
+                urlRegex.test(content)
+            ) {
+
+                detected = true;
+                reason = "Lien";
+            }
+
+            // =========================================
+            // SHORTENERS
+            // =========================================
+
+            if (
+                config.shorteners &&
+                shorteners.test(content)
+            ) {
+
+                detected = true;
+                reason = "Lien raccourci";
+            }
+
+            // =========================================
+            // SUSPICIOUS
+            // =========================================
+
+            if (
+                config.suspicious &&
+                suspicious.test(content)
+            ) {
+
+                detected = true;
+                reason = "Lien suspect";
+            }
+
+            if (!detected) return;
+
+            // =========================================
+            // DELETE MESSAGE
+            // =========================================
+
+            await message.delete().catch(() => {});
+
+            // =========================================
+            // TIMEOUT 5 MIN
+            // =========================================
+
+            if (message.member.moderatable) {
+
+                await message.member.timeout(
+                    5 * 60 * 1000,
+                    `AntiLien: ${reason}`
+                ).catch(() => {});
+            }
+
+            // =========================================
+            // ALERT
+            // =========================================
+
+            await message.channel.send({
+
+                content:
+                `🚨 ${message.author} a envoyé un contenu interdit.\n` +
+                `📌 Raison: **${reason}**\n` +
+                `⏳ Timeout: **5 minutes**`
+
+            }).then(msg => {
+
+                setTimeout(() => {
+                    msg.delete().catch(() => {});
+                }, 10000);
+
+            });
+
+            console.log(
+                `[ANTILINK] ${message.author.tag} -> ${reason}`
+            );
+
+        } catch (err) {
+
+            console.log("[ANTILINK ERROR]", err);
 
         }
 
-        const guildData = data[message.guild.id];
+    });
 
-        // =====================================================
-        // COMMANDS
-        // =====================================================
+    // =========================================
+    // COMMANDS
+    // PREFIX = +
+    // =========================================
 
-        if (!message.content.startsWith(PREFIX)) return;
+    client.on("messageCreate", async (message) => {
 
-        const args =
-            message.content.slice(PREFIX.length).trim().split(/ +/);
+        try {
 
-        const command = args.shift()?.toLowerCase();
+            if (!message.guild) return;
+            if (message.author.bot) return;
 
-        // =====================================================
-        // ANTILINK COMMAND
-        // =====================================================
+            if (!message.content.startsWith("+")) return;
 
-        if (command === "antilink") {
+            const args = message.content.slice(1).trim().split(/ +/);
+            const command = args.shift()?.toLowerCase();
+
+            const data = loadData();
+
+            if (!data[message.guild.id]) {
+
+                data[message.guild.id] = {
+
+                    enabled: false,
+
+                    links: false,
+                    discordInvites: false,
+                    shorteners: false,
+                    suspicious: false,
+
+                    whitelistRoles: []
+
+                };
+            }
+
+            const config = data[message.guild.id];
+
+            // =========================================
+            // PERMISSION
+            // =========================================
 
             if (
-                !message.member.permissions.has(
-                    PermissionsBitField.Flags.Administrator
-                )
+                !message.member.permissions.has("Administrator")
             ) {
 
-                return message.reply(
-                    "❌ Permission refusée."
-                );
-
+                return;
             }
 
-            const sub = args[0];
+            // =========================================
+            // +antilink on
+            // =========================================
 
-            // =====================================================
-            // ON
-            // =====================================================
+            if (command === "antilink") {
 
-            if (sub === "on") {
+                const option = args[0];
 
-                guildData.enabled = true;
+                if (!option) {
 
-                saveData(data);
+                    return message.reply(`
+📌 Commandes:
 
-                return message.reply(
-                    "✅ Anti-liens activé."
-                );
++antilink on
++antilink off
 
-            }
++discordinvites on/off
++links on/off
++shorteners on/off
++suspicious on/off
 
-            // =====================================================
-            // OFF
-            // =====================================================
-
-            if (sub === "off") {
-
-                guildData.enabled = false;
-
-                saveData(data);
-
-                return message.reply(
-                    "❌ Anti-liens désactivé."
-                );
-
-            }
-
-            // =====================================================
-            // PUNISHMENT
-            // =====================================================
-
-            if (sub === "punishment") {
-
-                const type = args[1];
-
-                const allowed = [
-                    "delete",
-                    "warn",
-                    "timeout",
-                    "kick",
-                    "ban"
-                ];
-
-                if (!allowed.includes(type)) {
-
-                    return message.reply(
-                        "❌ Punishments : delete / warn / timeout / kick / ban"
-                    );
-
++whitelist @role
++unwhitelist @role
+                    `);
                 }
 
-                guildData.punishment = type;
+                if (option === "on") {
 
-                saveData(data);
+                    config.enabled = true;
 
-                return message.reply(
-                    `✅ Punition définie sur : ${type}`
-                );
-
-            }
-
-            // =====================================================
-            // LOGS
-            // =====================================================
-
-            if (sub === "logs") {
-
-                const channel =
-                    message.mentions.channels.first();
-
-                if (!channel) {
+                    saveData(data);
 
                     return message.reply(
-                        "❌ Mentionne un salon."
+                        "✅ AntiLien activé."
                     );
-
                 }
 
-                guildData.logs = channel.id;
+                if (option === "off") {
+
+                    config.enabled = false;
+
+                    saveData(data);
+
+                    return message.reply(
+                        "❌ AntiLien désactivé."
+                    );
+                }
+            }
+
+            // =========================================
+            // TOGGLES
+            // =========================================
+
+            const systems = {
+
+                links: "links",
+                discordinvites: "discordInvites",
+                shorteners: "shorteners",
+                suspicious: "suspicious"
+
+            };
+
+            if (systems[command]) {
+
+                const value = args[0];
+
+                if (!["on", "off"].includes(value)) {
+
+                    return message.reply(
+                        "❌ Utilise on/off"
+                    );
+                }
+
+                config[systems[command]] =
+                    value === "on";
 
                 saveData(data);
 
                 return message.reply(
-                    `✅ Salon logs : ${channel}`
+                    `✅ ${command} -> ${value}`
                 );
-
             }
 
-            // =====================================================
-            // WHITELIST ROLE
-            // =====================================================
+            // =========================================
+            // WHITELIST
+            // =========================================
 
-            if (sub === "whitelistrole") {
+            if (command === "whitelist") {
 
-                const role =
-                    message.mentions.roles.first();
+                const role = message.mentions.roles.first();
 
                 if (!role) {
 
                     return message.reply(
                         "❌ Mentionne un rôle."
                     );
-
                 }
 
                 if (
-                    guildData.whitelistRoles.includes(role.id)
+                    config.whitelistRoles.includes(role.id)
                 ) {
 
                     return message.reply(
                         "❌ Déjà whitelist."
                     );
-
                 }
 
-                guildData.whitelistRoles.push(role.id);
+                config.whitelistRoles.push(role.id);
 
                 saveData(data);
 
                 return message.reply(
-                    `✅ Rôle whitelist : ${role}`
+                    `✅ ${role} ajouté whitelist.`
                 );
-
             }
 
-            // =====================================================
-            // WHITELIST CHANNEL
-            // =====================================================
+            // =========================================
+            // UNWHITELIST
+            // =========================================
 
-            if (sub === "whitelistchannel") {
+            if (command === "unwhitelist") {
 
-                const channel =
-                    message.mentions.channels.first();
+                const role = message.mentions.roles.first();
 
-                if (!channel) {
-
-                    return message.reply(
-                        "❌ Mentionne un salon."
-                    );
-
-                }
-
-                if (
-                    guildData.whitelistChannels.includes(channel.id)
-                ) {
+                if (!role) {
 
                     return message.reply(
-                        "❌ Déjà whitelist."
+                        "❌ Mentionne un rôle."
                     );
-
                 }
 
-                guildData.whitelistChannels.push(channel.id);
+                config.whitelistRoles =
+                    config.whitelistRoles.filter(
+                        r => r !== role.id
+                    );
 
                 saveData(data);
 
                 return message.reply(
-                    `✅ Salon whitelist : ${channel}`
+                    `✅ ${role} retiré whitelist.`
                 );
-
             }
 
-            // =====================================================
+            // =========================================
             // STATUS
-            // =====================================================
+            // =========================================
 
-            if (sub === "status") {
+            if (command === "antilinkstatus") {
 
-                const embed = new EmbedBuilder()
+                return message.reply(`
 
-                    .setColor("#ffb347")
+🛡️ AntiLien: ${config.enabled ? "ON" : "OFF"}
 
-                    .setTitle("🛡️ Anti-Link Status")
+🔗 Liens: ${config.links ? "ON" : "OFF"}
 
-                    .addFields(
+📨 Invitations Discord:
+${config.discordInvites ? "ON" : "OFF"}
 
-                        {
-                            name: "Statut",
-                            value:
-                            guildData.enabled
-                                ? "✅ Activé"
-                                : "❌ Désactivé"
-                        },
+📎 Shorteners:
+${config.shorteners ? "ON" : "OFF"}
 
-                        {
-                            name: "Punition",
-                            value:
-                            guildData.punishment
-                        },
+⚠️ Suspicious:
+${config.suspicious ? "ON" : "OFF"}
 
-                        {
-                            name: "Logs",
-                            value:
-                            guildData.logs
-                                ? `<#${guildData.logs}>`
-                                : "❌ Aucun"
-                        }
+👑 Whitelist rôles:
+${config.whitelistRoles.length}
 
-                    );
-
-                return message.reply({
-                    embeds: [embed]
-                });
-
+                `);
             }
 
-        }
+        } catch (err) {
 
-        // =====================================================
-        // CHECK ENABLED
-        // =====================================================
-
-        if (!guildData.enabled) return;
-
-        // =====================================================
-        // WHITELIST ROLE
-        // =====================================================
-
-        const hasWhitelistRole =
-            message.member.roles.cache.some(role =>
-                guildData.whitelistRoles.includes(role.id)
-            );
-
-        if (hasWhitelistRole) return;
-
-        // =====================================================
-        // WHITELIST CHANNEL
-        // =====================================================
-
-        if (
-            guildData.whitelistChannels.includes(
-                message.channel.id
-            )
-        ) return;
-
-        // =====================================================
-        // DETECT LINKS
-        // =====================================================
-
-        const content =
-            message.content.toLowerCase();
-
-        const hasLink =
-            linkRegex.test(content);
-
-        const isScam =
-            scamDomains.some(domain =>
-                content.includes(domain)
-            );
-
-        if (!hasLink && !isScam) return;
-
-        // =====================================================
-        // DELETE MESSAGE
-        // =====================================================
-
-        await message.delete().catch(() => {});
-
-        // =====================================================
-        // LOG EMBED
-        // =====================================================
-
-        const logEmbed = new EmbedBuilder()
-
-            .setColor("#ff0000")
-
-            .setTitle("🚨 Lien détecté")
-
-            .addFields(
-
-                {
-                    name: "Utilisateur",
-                    value:
-                    `${message.author}`
-                },
-
-                {
-                    name: "Salon",
-                    value:
-                    `${message.channel}`
-                },
-
-                {
-                    name: "Message",
-                    value:
-                    message.content.slice(0, 1000)
-                },
-
-                {
-                    name: "Type",
-                    value:
-                    isScam
-                        ? "☣️ Scam / Phishing"
-                        : "🔗 Lien"
-                },
-
-                {
-                    name: "Punition",
-                    value:
-                    guildData.punishment
-                }
-
-            )
-
-            .setTimestamp();
-
-        // =====================================================
-        // SEND LOGS
-        // =====================================================
-
-        if (guildData.logs) {
-
-            const logsChannel =
-                message.guild.channels.cache.get(
-                    guildData.logs
-                );
-
-            if (logsChannel) {
-
-                logsChannel.send({
-                    embeds: [logEmbed]
-                }).catch(() => {});
-
-            }
-
-        }
-
-        // =====================================================
-        // PUNISHMENTS
-        // =====================================================
-
-        switch (guildData.punishment) {
-
-            case "warn":
-
-                message.channel.send({
-                    content:
-                    `⚠️ ${message.author} les liens sont interdits.`
-                });
-
-                break;
-
-            case "timeout":
-
-                await message.member.timeout(
-                    10 * 60 * 1000,
-                    "Anti-link"
-                ).catch(() => {});
-
-                break;
-
-            case "kick":
-
-                await message.member.kick(
-                    "Anti-link"
-                ).catch(() => {});
-
-                break;
-
-            case "ban":
-
-                await message.member.ban({
-                    reason: "Anti-link"
-                }).catch(() => {});
-
-                break;
+            console.log("[COMMAND ERROR]", err);
 
         }
 
