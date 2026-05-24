@@ -18,12 +18,27 @@ const app = express();
 const PORT = 3000;
 
 app.get("/", (req, res) => {
-    res.send("Pyxar Bot Online");
+    res.send("🚧 Pyxar Maintenance Mode");
 });
 
 app.listen(PORT, () => {
-    console.log(`🌐 Web server running on port ${PORT}`);
+    console.log(`🌐 Maintenance server running on port ${PORT}`);
 });
+
+// =========================
+// CONFIG
+// =========================
+const GUILD_ID = "1505330441274658876";
+
+const CEO_ROLE = "1505330692106485781";
+
+const MAINTENANCE_ROLE = "1508206039151935578";
+
+// CHANNELS
+const MAINTENANCE_ANNONCE = "1508207035852787742";
+const MAINTENANCE_INFOS = "1508207063132803113";
+const MAINTENANCE_STATUS = "1508207088248033311";
+const MAINTENANCE_TIMER = "1508207128920461372";
 
 // =========================
 // DISCORD CLIENT
@@ -36,8 +51,6 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildModeration,
         GatewayIntentBits.GuildPresences
 
     ],
@@ -49,360 +62,31 @@ const client = new Client({
 });
 
 // =========================
-// IMPORT EVENTS
-// =========================
-const antiSpam = require("./events/antiSpam");
-const onboarding = require("./events/onboarding");
-const ticketSystem = require("./events/ticket");
-const voiceTemp = require("./events/voiceTemp");
-const moderation = require("./events/moderation");
-const logsSystem = require("./events/logs");
-
-// =========================
-// CONFIG
-// =========================
-const GUILD_ID = "1505330441274658876";
-
-const TWITCH_URL =
-    "https://www.twitch.tv/teampyxar";
-
-// =========================
 // MAINTENANCE CONFIG
 // =========================
-const maintenanceState = {
 
-    enabled: false
-
-};
-
-// =========================
-// CHANNELS MAINTENANCE
-// =========================
-const MAINTENANCE_ANNONCE =
-    "1508207035852787742";
-
-const MAINTENANCE_INFO =
-    "1508207063132803113";
-
-const MAINTENANCE_STATUS =
-    "1508207088248033311";
-
-const MAINTENANCE_TIMER =
-    "1508207128920461372";
+// ⏰ Heure de fin maintenance
+// FORMAT : année, mois-1, jour, heure, minute
+const maintenanceEnd =
+    new Date(2026, 4, 24, 4, 37, 0);
 
 // =========================
-// TIMER CONFIG
+// FORMAT TIME
 // =========================
-const MAINTENANCE_END =
-    new Date("2026-05-24T04:37:00").getTime();
+function formatDuration(ms) {
 
-// =========================
-// STATUS ROTATIF
-// =========================
-let index = 0;
+    const totalSeconds = Math.floor(ms / 1000);
 
-async function updateStatus() {
+    const hours =
+        Math.floor(totalSeconds / 3600);
 
-    try {
+    const minutes =
+        Math.floor((totalSeconds % 3600) / 60);
 
-        // =========================
-        // MAINTENANCE STATUS
-        // =========================
-        if (maintenanceState.enabled) {
+    const seconds =
+        totalSeconds % 60;
 
-            client.user.setPresence({
-
-                activities: [{
-
-                    type: ActivityType.Watching,
-
-                    name: "🔧 Système en maintenance"
-
-                }],
-
-                status: "dnd"
-
-            });
-
-            return;
-
-        }
-
-        // =========================
-        // NORMAL STATUS
-        // =========================
-        const guild =
-            client.guilds.cache.get(GUILD_ID);
-
-        const memberCount =
-            guild ? guild.memberCount : 0;
-
-        let status;
-
-        // STATUS 1
-        if (index === 0) {
-
-            status = {
-
-                type: ActivityType.Streaming,
-
-                name: "#PXRWIN 💛🤍",
-
-                url: TWITCH_URL
-
-            };
-
-        }
-
-        // STATUS 2
-        else if (index === 1) {
-
-            status = {
-
-                type: ActivityType.Watching,
-
-                name: `Surveille ${memberCount} membres 👀`
-
-            };
-
-        }
-
-        // STATUS 3
-        else {
-
-            status = {
-
-                type: ActivityType.Watching,
-
-                name: "Dev By Vyrn 🧑‍💻"
-
-            };
-
-        }
-
-        client.user.setPresence({
-
-            activities: [status],
-
-            status: "online"
-
-        });
-
-        index = (index + 1) % 3;
-
-    } catch (err) {
-
-        console.log("❌ Erreur status :");
-        console.log(err);
-
-    }
-}
-
-// =========================
-// MAINTENANCE SYSTEM
-// =========================
-async function updateMaintenanceChannels() {
-
-    try {
-
-        if (!maintenanceState.enabled) return;
-
-        const annonce =
-            await client.channels.fetch(
-                MAINTENANCE_ANNONCE
-            );
-
-        const info =
-            await client.channels.fetch(
-                MAINTENANCE_INFO
-            );
-
-        const status =
-            await client.channels.fetch(
-                MAINTENANCE_STATUS
-            );
-
-        const timer =
-            await client.channels.fetch(
-                MAINTENANCE_TIMER
-            );
-
-        // =========================
-        // CALCUL TIMER
-        // =========================
-        const now = Date.now();
-
-        const diff =
-            MAINTENANCE_END - now;
-
-        const hours =
-            Math.floor(diff / 3600000);
-
-        const minutes =
-            Math.floor(
-                (diff % 3600000) / 60000
-            );
-
-        const seconds =
-            Math.floor(
-                (diff % 60000) / 1000
-            );
-
-        // =========================
-        // RENAME TIMER CHANNEL
-        // =========================
-        await timer.setName(
-            `⏳・${hours}h ${minutes}m ${seconds}s`
-        );
-
-        // =========================
-        // ANNONCE
-        // =========================
-        const annonceEmbed =
-            new EmbedBuilder()
-
-            .setColor("#f1c40f")
-
-            .setTitle(
-                "🔧 Maintenance en cours"
-            )
-
-            .setDescription(`
-
-Une maintenance importante est actuellement en cours sur Team Pyxar.
-
-Nos équipes travaillent actuellement sur :
-
-• Correctifs de sécurité
-• Optimisation des systèmes
-• Stabilisation du bot
-• Correctifs bunker
-• Optimisation anti-raid
-• Optimisation logs
-• Optimisation tickets
-• Optimisation vocal temporaire
-
-Merci de votre patience 💛🤍
-
-            `)
-
-            .setFooter({
-                text: "Team Pyxar"
-            });
-
-        // =========================
-        // INFO
-        // =========================
-        const infoEmbed =
-            new EmbedBuilder()
-
-            .setColor("#2b2d31")
-
-            .setTitle(
-                "📌 Informations maintenance"
-            )
-
-            .setDescription(`
-
-Cette maintenance est due à l'ajout
-de nouveaux systèmes de sécurité avancés.
-
-Les systèmes actuellement en cours
-de correction :
-
-• Bunker
-• AntiRaid
-• AntiSpam
-• Logs
-• TempVoice
-• Permissions
-• Modération
-• Systèmes automatiques
-
-L'objectif est de rendre le serveur
-beaucoup plus stable et sécurisé.
-
-            `);
-
-        // =========================
-        // STATUS
-        // =========================
-        const statusEmbed =
-            new EmbedBuilder()
-
-            .setColor("#e74c3c")
-
-            .setTitle(
-                "📊 État des systèmes"
-            )
-
-            .setDescription(`
-
-🔴 Tickets
-🔴 Logs
-🔴 TempVoice
-🔴 Modération
-🔴 AntiSpam
-🔴 AntiRaid
-🔴 Bunker
-🔴 AutoMod
-🔴 Vocal
-🔴 Permissions
-🔴 Sécurité
-🔴 Onboarding
-🔴 Protection liens
-🔴 Protection spam
-🔴 Protection raids
-
-🟡 API Discord
-🟢 Core Bot
-
-            `);
-
-        // =========================
-        // CLEAR + SEND
-        // =========================
-        const channels = [
-            annonce,
-            info,
-            status
-        ];
-
-        for (const ch of channels) {
-
-            const messages =
-                await ch.messages.fetch({
-                    limit: 10
-                });
-
-            await ch.bulkDelete(
-                messages,
-                true
-            ).catch(() => {});
-
-        }
-
-        await annonce.send({
-            embeds: [annonceEmbed]
-        });
-
-        await info.send({
-            embeds: [infoEmbed]
-        });
-
-        await status.send({
-            embeds: [statusEmbed]
-        });
-
-    } catch (err) {
-
-        console.log(
-            "❌ Maintenance erreur :"
-        );
-
-        console.log(err);
-
-    }
+    return `${hours}h ${minutes}m ${seconds}s`;
 }
 
 // =========================
@@ -410,151 +94,312 @@ beaucoup plus stable et sécurisé.
 // =========================
 client.once("clientReady", async () => {
 
-    console.log(`✅ Logged as ${client.user.tag}`);
+    console.log(`✅ Maintenance connecté : ${client.user.tag}`);
 
     try {
 
-        // =========================
-        // LOAD SYSTEMS
-        // =========================
-        ticketSystem(client);
+        const guild =
+            client.guilds.cache.get(GUILD_ID);
 
-        voiceTemp(client);
-
-        antiSpam(client);
-
-        moderation(client);
-
-        logsSystem(client);
-
-        console.log(
-            "✅ Tous les systèmes chargés."
-        );
+        if (!guild) {
+            return console.log("❌ Serveur introuvable.");
+        }
 
         // =========================
-        // START STATUS
+        // STATUS BOT
         // =========================
-        await updateStatus();
+        client.user.setPresence({
 
-        setInterval(
-            updateStatus,
-            30000
-        );
+            activities: [
 
-        console.log(
-            "🔁 Status rotatif activé."
-        );
+                {
+                    type: ActivityType.Watching,
+                    name: "🚧 Système en maintenance"
+                }
+
+            ],
+
+            status: "dnd"
+
+        });
+
+        console.log("✅ Status maintenance activé.");
 
         // =========================
-        // START MAINTENANCE TIMER
+        // CHANNELS
         // =========================
-        setInterval(async () => {
+        const annonceChannel =
+            guild.channels.cache.get(MAINTENANCE_ANNONCE);
 
-            await updateMaintenanceChannels();
+        const infosChannel =
+            guild.channels.cache.get(MAINTENANCE_INFOS);
 
-        }, 10000);
+        const statusChannel =
+            guild.channels.cache.get(MAINTENANCE_STATUS);
+
+        const timerChannel =
+            guild.channels.cache.get(MAINTENANCE_TIMER);
+
+        // =========================
+        // CLEAR CHANNELS
+        // =========================
+        async function clearChannel(channel) {
+
+            if (!channel) return;
+
+            const messages =
+                await channel.messages.fetch({
+                    limit: 100
+                });
+
+            await channel.bulkDelete(messages, true)
+                .catch(() => {});
+        }
+
+        await clearChannel(annonceChannel);
+        await clearChannel(infosChannel);
+        await clearChannel(statusChannel);
+        await clearChannel(timerChannel);
+
+        // =========================
+        // DONNER ROLE MAINTENANCE
+        // =========================
+        const members =
+            await guild.members.fetch();
+
+        for (const member of members.values()) {
+
+            if (member.user.bot) continue;
+
+            // CEO IGNORÉS
+            if (
+                member.roles.cache.has(CEO_ROLE)
+            ) continue;
+
+            await member.roles.add(
+                MAINTENANCE_ROLE
+            ).catch(() => {});
+        }
+
+        console.log("✅ Rôle maintenance attribué.");
+
+        // =========================
+        // EMBED ANNONCE
+        // =========================
+        const annonceEmbed =
+            new EmbedBuilder()
+
+            .setColor("#ffcc00")
+
+            .setTitle("🚧 Maintenance Pyxar")
+
+            .setDescription(`
+Le serveur est actuellement en maintenance.
+
+Nos équipes travaillent actuellement sur plusieurs systèmes de sécurité avancés afin d'améliorer la stabilité et la protection du serveur.
+
+Merci de votre patience 💛🤍
+            `)
+
+            .setFooter({
+                text: "Team Pyxar"
+            })
+
+            .setTimestamp();
+
+        await annonceChannel.send({
+            embeds: [annonceEmbed]
+        });
+
+        // =========================
+        // EMBED INFOS
+        // =========================
+        const infosEmbed =
+            new EmbedBuilder()
+
+            .setColor("#2b2d31")
+
+            .setTitle("📌 Informations Maintenance")
+
+            .setDescription(`
+### Maintenance en cours
+
+Cette maintenance est liée :
+
+• aux systèmes de sécurité
+• aux protections anti-raid
+• aux protections anti-abus
+• aux systèmes bunker
+• aux systèmes de logs
+• aux protections vocales
+• aux protections permissions
+• aux optimisations générales
+
+Les développeurs travaillent actuellement afin de corriger plusieurs problèmes techniques détectés récemment.
+
+Merci de votre compréhension.
+            `)
+
+            .setFooter({
+                text: "Dev By Vyrn"
+            })
+
+            .setTimestamp();
+
+        await infosChannel.send({
+            embeds: [infosEmbed]
+        });
+
+        // =========================
+        // EMBED STATUS
+        // =========================
+        const statusEmbed =
+            new EmbedBuilder()
+
+            .setColor("#ff0000")
+
+            .setTitle("📡 État des systèmes")
+
+            .setDescription(`
+🔴 Ticket System  
+🔴 VoiceTemp  
+🔴 Logs System  
+🔴 AntiSpam  
+🔴 Moderation  
+🔴 Bunker System  
+🔴 Onboarding  
+🔴 Permissions  
+🔴 Sécurité Serveur  
+🔴 Systèmes Vocaux  
+🔴 Protection AntiRaid  
+🔴 API Interne  
+🔴 Protection Liens  
+🔴 TempChannels  
+🔴 Automodération  
+
+Tous les systèmes sont actuellement hors ligne.
+            `)
+
+            .setFooter({
+                text: "Pyxar Security"
+            })
+
+            .setTimestamp();
+
+        await statusChannel.send({
+            embeds: [statusEmbed]
+        });
+
+        // =========================
+        // TIMER MESSAGE
+        // =========================
+        const timerMessage =
+            await timerChannel.send("⏳ Initialisation...");
+
+        async function updateTimer() {
+
+            const now = new Date();
+
+            const remaining =
+                maintenanceEnd - now;
+
+            if (remaining <= 0) {
+
+                return timerMessage.edit(`
+# ✅ Maintenance terminée
+
+Le serveur revient progressivement en ligne.
+                `);
+            }
+
+            await timerMessage.edit(`
+# ⏳ Temps restant avant retour
+
+🚧 Retour estimé dans :
+
+## ${formatDuration(remaining)}
+
+🕒 Heure estimée :
+<t:${Math.floor(maintenanceEnd.getTime() / 1000)}:F>
+
+Merci de votre patience 💛🤍
+            `);
+        }
+
+        updateTimer();
+
+        setInterval(updateTimer, 1000);
+
+        console.log("✅ Maintenance totalement activée.");
 
     } catch (err) {
 
-        console.log(
-            "❌ Erreur chargement systèmes :"
-        );
-
+        console.log("❌ Erreur maintenance :");
         console.log(err);
 
     }
 });
 
 // =========================
-// MEMBER JOIN
+// COMMANDES MAINTENANCE
 // =========================
-client.on(
-    "guildMemberAdd",
-    async (member) => {
+client.on("messageCreate", async (message) => {
 
-        try {
+    try {
 
-            onboarding(client, member);
+        if (message.author.bot) return;
 
-        } catch (err) {
+        if (!message.guild) return;
 
-            console.log(
-                "❌ Erreur onboarding :"
-            );
+        // =========================
+        // +maintenance on
+        // =========================
+        if (
+            message.content.toLowerCase()
+            === "+maintenance on"
+        ) {
 
-            console.log(err);
-
-        }
-    }
-);
-
-// =========================
-// MESSAGE CREATE
-// =========================
-client.on(
-    "messageCreate",
-    async (message) => {
-
-        try {
-
-            if (message.author.bot) return;
-
-            // =========================
-            // PING
-            // =========================
+            // CHECK CEO
             if (
-                message.content === "!ping"
+                !message.member.roles.cache.has(
+                    CEO_ROLE
+                )
             ) {
 
-                const ping =
-                    Date.now() -
-                    message.createdTimestamp;
-
                 return message.reply(
-                    `🏓 Pong : ${ping}ms`
+                    "❌ Tu n'es pas autorisé."
                 );
             }
 
-        } catch (err) {
-
-            console.log(
-                "❌ Erreur messageCreate :"
+            return message.reply(
+                "✅ Maintenance déjà active."
             );
-
-            console.log(err);
-
         }
+
+    } catch (err) {
+
+        console.log("❌ Erreur commande maintenance :");
+        console.log(err);
+
     }
-);
+});
 
 // =========================
 // ERROR HANDLERS
 // =========================
-process.on(
-    "unhandledRejection",
-    (err) => {
+process.on("unhandledRejection", (err) => {
 
-        console.log(
-            "❌ Unhandled Rejection:"
-        );
+    console.log("❌ Unhandled Rejection:");
+    console.log(err);
 
-        console.log(err);
+});
 
-    }
-);
+process.on("uncaughtException", (err) => {
 
-process.on(
-    "uncaughtException",
-    (err) => {
+    console.log("❌ Uncaught Exception:");
+    console.log(err);
 
-        console.log(
-            "❌ Uncaught Exception:"
-        );
-
-        console.log(err);
-
-    }
-);
+});
 
 // =========================
 // LOGIN
