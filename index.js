@@ -30,16 +30,21 @@ app.listen(PORT, () => {
 const client = new Client({
 
     intents: [
+
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildPresences
+
     ],
 
     partials: [
         Partials.Channel
     ]
+
 });
 
 // =========================
@@ -50,12 +55,15 @@ const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
+const logsSystem = require("./events/logs"); // ✅ LOGS
 
 // =========================
 // CONFIG STATUS
 // =========================
 const GUILD_ID = "1505330441274658876";
-const TWITCH_URL = "https://www.twitch.tv/teampyxar";
+
+const TWITCH_URL =
+    "https://www.twitch.tv/teampyxar";
 
 let index = 0;
 
@@ -66,7 +74,8 @@ async function updateStatus() {
 
     try {
 
-        const guild = client.guilds.cache.get(GUILD_ID);
+        const guild =
+            client.guilds.cache.get(GUILD_ID);
 
         const memberCount =
             guild ? guild.memberCount : 0;
@@ -79,9 +88,13 @@ async function updateStatus() {
         if (index === 0) {
 
             status = {
+
                 type: ActivityType.Streaming,
+
                 name: "#PXRWIN 💛🤍",
+
                 url: TWITCH_URL
+
             };
 
         }
@@ -92,8 +105,11 @@ async function updateStatus() {
         else if (index === 1) {
 
             status = {
+
                 type: ActivityType.Watching,
+
                 name: `Surveille ${memberCount} membres 👀`
+
             };
 
         }
@@ -104,22 +120,29 @@ async function updateStatus() {
         else {
 
             status = {
+
                 type: ActivityType.Watching,
+
                 name: "Dev By Vyrn 🧑‍💻"
+
             };
 
         }
 
         client.user.setPresence({
+
             activities: [status],
+
             status: "online"
+
         });
 
         index = (index + 1) % 3;
 
     } catch (err) {
 
-        console.log("❌ Erreur status :", err);
+        console.log("❌ Erreur status :");
+        console.log(err);
 
     }
 }
@@ -136,6 +159,7 @@ client.once("clientReady", async () => {
         // =========================
         // LOAD SYSTEMS
         // =========================
+
         ticketSystem(client);
 
         voiceTemp(client);
@@ -144,12 +168,15 @@ client.once("clientReady", async () => {
 
         moderation(client);
 
+        logsSystem(client); // ✅ LOAD LOGS
+
         console.log("✅ Tous les systèmes chargés.");
 
         // =========================
-        // START STATUS ROTATION
+        // START STATUS
         // =========================
-        updateStatus();
+
+        await updateStatus();
 
         setInterval(updateStatus, 30000);
 
