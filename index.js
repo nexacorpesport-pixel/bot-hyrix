@@ -13,6 +13,7 @@ require("dotenv").config();
 // EXPRESS
 // =========================
 const app = express();
+
 const PORT = 3000;
 
 app.get("/", (req, res) => {
@@ -63,68 +64,102 @@ let index = 0;
 // =========================
 async function updateStatus() {
 
-    const guild = client.guilds.cache.get(GUILD_ID);
-    const memberCount = guild ? guild.memberCount : 0;
+    try {
 
-    let status;
+        const guild = client.guilds.cache.get(GUILD_ID);
 
-    if (index === 0) {
+        const memberCount =
+            guild ? guild.memberCount : 0;
 
-        status = {
-            type: ActivityType.Streaming,
-            name: "#PXRWIN 💛🤍",
-            url: TWITCH_URL
-        };
+        let status;
 
-    } else if (index === 1) {
+        // =========================
+        // STATUS 1
+        // =========================
+        if (index === 0) {
 
-        status = {
-            type: ActivityType.Watching,
-            name: `Surveille ${memberCount} membres 👀`
-        };
+            status = {
+                type: ActivityType.Streaming,
+                name: "#PXRWIN 💛🤍",
+                url: TWITCH_URL
+            };
 
-    } else {
+        }
 
-        status = {
-            type: ActivityType.Watching,
-            name: "Dev By Vyrn 🧑‍💻"
-        };
+        // =========================
+        // STATUS 2
+        // =========================
+        else if (index === 1) {
+
+            status = {
+                type: ActivityType.Watching,
+                name: `Surveille ${memberCount} membres 👀`
+            };
+
+        }
+
+        // =========================
+        // STATUS 3
+        // =========================
+        else {
+
+            status = {
+                type: ActivityType.Watching,
+                name: "Dev By Vyrn 🧑‍💻"
+            };
+
+        }
+
+        client.user.setPresence({
+            activities: [status],
+            status: "online"
+        });
+
+        index = (index + 1) % 3;
+
+    } catch (err) {
+
+        console.log("❌ Erreur status :", err);
+
     }
-
-    client.user.setPresence({
-        activities: [status],
-        status: "online"
-    });
-
-    index = (index + 1) % 3;
 }
 
 // =========================
 // READY
 // =========================
-client.once("ready", async () => {
+client.once("clientReady", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
     try {
 
+        // =========================
+        // LOAD SYSTEMS
+        // =========================
         ticketSystem(client);
-        voiceTemp(client);
-        antiSpam(client);
-        moderation(client);
 
-        // 🔥 BUNKER SYSTEM CHARGÉ AVEC STATE
-        bunkerSystem(client, bunkerState);
+        voiceTemp(client);
+
+        antiSpam(client);
+
+        moderation(client);
 
         console.log("✅ Tous les systèmes chargés.");
 
+        // =========================
+        // START STATUS ROTATION
+        // =========================
         updateStatus();
+
         setInterval(updateStatus, 30000);
 
         console.log("🔁 Status rotatif activé.");
 
     } catch (err) {
-        console.log("❌ Erreur chargement systèmes :", err);
+
+        console.log("❌ Erreur chargement systèmes :");
+        console.log(err);
+
     }
 });
 
@@ -132,21 +167,46 @@ client.once("ready", async () => {
 // MEMBER JOIN
 // =========================
 client.on("guildMemberAdd", async (member) => {
-    onboarding(client, member);
+
+    try {
+
+        onboarding(client, member);
+
+    } catch (err) {
+
+        console.log("❌ Erreur onboarding :");
+        console.log(err);
+
+    }
 });
 
 // =========================
-// MESSAGE CREATE (PING ONLY)
+// MESSAGE CREATE
 // =========================
 client.on("messageCreate", async (message) => {
 
-    if (message.author.bot) return;
+    try {
 
-    if (message.content === "!ping") {
+        if (message.author.bot) return;
 
-        const ping = Date.now() - message.createdTimestamp;
+        // =========================
+        // PING
+        // =========================
+        if (message.content === "!ping") {
 
-        return message.reply(`🏓 Pong : ${ping}ms`);
+            const ping =
+                Date.now() - message.createdTimestamp;
+
+            return message.reply(
+                `🏓 Pong : ${ping}ms`
+            );
+        }
+
+    } catch (err) {
+
+        console.log("❌ Erreur messageCreate :");
+        console.log(err);
+
     }
 });
 
@@ -154,13 +214,17 @@ client.on("messageCreate", async (message) => {
 // ERROR HANDLERS
 // =========================
 process.on("unhandledRejection", (err) => {
+
     console.log("❌ Unhandled Rejection:");
     console.log(err);
+
 });
 
 process.on("uncaughtException", (err) => {
+
     console.log("❌ Uncaught Exception:");
     console.log(err);
+
 });
 
 // =========================
