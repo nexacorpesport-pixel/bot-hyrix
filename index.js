@@ -50,6 +50,20 @@ const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 
+// 🔥 BUNKER SYSTEM (IMPORTANT)
+const bunkerSystem = require("./events/bunker");
+
+// =========================
+// 🔐 BUNKER STATE GLOBAL (PARTAGÉ)
+// =========================
+const bunkerState = {
+    active: false,
+    key: "PXRBUNKER-9X7!VYRN-LOCK-9921", // clé secrète
+    confirmed: new Set(), // double CEO validation
+    logsChannel: "1508090725672288387",
+    bunkerCategory: "1508090450102456360"
+};
+
 // =========================
 // CONFIG STATUS
 // =========================
@@ -58,29 +72,12 @@ const TWITCH_URL = "https://www.twitch.tv/teampyxar";
 
 let index = 0;
 
-const statuses = [
-    {
-        type: ActivityType.Streaming,
-        name: "#PXRWIN 💛🤍",
-        url: TWITCH_URL
-    },
-    {
-        type: ActivityType.Watching,
-        name: "Surveille le serveur 👀"
-    },
-    {
-        type: ActivityType.Watching,
-        name: "Dev By Vyrn 🧑‍💻"
-    }
-];
-
 // =========================
 // STATUS SYSTEM
 // =========================
 async function updateStatus() {
 
     const guild = client.guilds.cache.get(GUILD_ID);
-
     const memberCount = guild ? guild.memberCount : 0;
 
     let status;
@@ -100,13 +97,12 @@ async function updateStatus() {
             name: `Surveille ${memberCount} membres 👀`
         };
 
-    } else if (index === 2) {
+    } else {
 
         status = {
             type: ActivityType.Watching,
             name: "Dev By Vyrn 🧑‍💻"
         };
-
     }
 
     client.user.setPresence({
@@ -114,7 +110,7 @@ async function updateStatus() {
         status: "online"
     });
 
-    index = (index + 1) % statuses.length;
+    index = (index + 1) % 3;
 }
 
 // =========================
@@ -131,9 +127,11 @@ client.once("ready", async () => {
         antiSpam(client);
         moderation(client);
 
+        // 🔥 BUNKER SYSTEM CHARGÉ AVEC STATE
+        bunkerSystem(client, bunkerState);
+
         console.log("✅ Tous les systèmes chargés.");
 
-        // STATUS START
         updateStatus();
         setInterval(updateStatus, 30000);
 
