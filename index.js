@@ -3,7 +3,8 @@ const express = require("express");
 const {
     Client,
     GatewayIntentBits,
-    Partials
+    Partials,
+    ActivityType
 } = require("discord.js");
 
 require("dotenv").config();
@@ -50,6 +51,73 @@ const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 
 // =========================
+// CONFIG STATUS
+// =========================
+const GUILD_ID = "1505330441274658876";
+const TWITCH_URL = "https://www.twitch.tv/teampyxar";
+
+let index = 0;
+
+const statuses = [
+    {
+        type: ActivityType.Streaming,
+        name: "#PXRWIN 💛🤍",
+        url: TWITCH_URL
+    },
+    {
+        type: ActivityType.Watching,
+        name: "Surveille le serveur 👀"
+    },
+    {
+        type: ActivityType.Watching,
+        name: "Dev By Vyrn 🧑‍💻"
+    }
+];
+
+// =========================
+// STATUS SYSTEM
+// =========================
+async function updateStatus() {
+
+    const guild = client.guilds.cache.get(GUILD_ID);
+
+    const memberCount = guild ? guild.memberCount : 0;
+
+    let status;
+
+    if (index === 0) {
+
+        status = {
+            type: ActivityType.Streaming,
+            name: "#PXRWIN 💛🤍",
+            url: TWITCH_URL
+        };
+
+    } else if (index === 1) {
+
+        status = {
+            type: ActivityType.Watching,
+            name: `Surveille ${memberCount} membres 👀`
+        };
+
+    } else if (index === 2) {
+
+        status = {
+            type: ActivityType.Watching,
+            name: "Dev By Vyrn 🧑‍💻"
+        };
+
+    }
+
+    client.user.setPresence({
+        activities: [status],
+        status: "online"
+    });
+
+    index = (index + 1) % statuses.length;
+}
+
+// =========================
 // READY
 // =========================
 client.once("ready", async () => {
@@ -58,13 +126,18 @@ client.once("ready", async () => {
 
     try {
 
-        // LOAD SYSTEMS
         ticketSystem(client);
         voiceTemp(client);
-        antiSpam(client);      // ✅ AJOUT IMPORTANT
+        antiSpam(client);
         moderation(client);
 
         console.log("✅ Tous les systèmes chargés.");
+
+        // STATUS START
+        updateStatus();
+        setInterval(updateStatus, 30000);
+
+        console.log("🔁 Status rotatif activé.");
 
     } catch (err) {
         console.log("❌ Erreur chargement systèmes :", err);
