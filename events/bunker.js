@@ -1,220 +1,214 @@
 const {
     PermissionsBitField,
-    ChannelType,
-    EmbedBuilder
+    ChannelType
 } = require("discord.js");
 
 // =========================
 // CONFIG
 // =========================
+const ROLE_BUNKER = "1508091050932043897";
+const ROLE_CEO = "1505330692106485781"; // CEO principal
+const CEO_LIST = [
+    "1360656494546387266",
+    "1492655850483875901"
+];
 
-const CONFIG = {
-    ROLE_BUNKER: "1508091050932043897",
-    ROLE_CEO: "1505330692106485781",
+const BUNKER_CATEGORY = "1508090450102456360";
+const LOGS_CHANNEL = "1508090725672288387";
 
-    CEO_ALLOWED: [
-        "1360656494546387266",
-        "1492655850483875901"
-    ],
-
-    CATEGORY_BUNKER: "1508090450102456360",
-    LOGS: "1508090725672288387",
-    STAFF: "1508090668315312350",
-
-    SECRET_KEY: "PX-BUNKER-9fX!2026#ULTRA_SECURE_KEY"
-};
+// Clé ultra sécurisée (change si tu veux)
+const BUNKER_KEY = "PX-BUNKER-9fX!2026#ULTRA_SECURE_KEY";
 
 // =========================
-// STATE
+// STATE GLOBAL
 // =========================
-
-let bunkerState = {
-    enabled: false,
-    pending: null
-};
+let bunkerActive = false;
+let pendingConfirm = new Map(); // double CEO confirmation
 
 // =========================
-// UTILS SAFE
+// MAIN MODULE
 // =========================
-
-async function safeEdit(channel, perms) {
-    try {
-        await channel.permissionOverwrites.edit(channel.guild.id, perms);
-    } catch (e) {}
-}
-
-// =========================
-// MODULE
-// =========================
-
 module.exports = (client) => {
 
-    console.log("[BUNKER] Loaded");
-
     // =========================
-    // ANTI WRITE MESSAGE (LOCK EFFECT)
+    // COMMANDS
     // =========================
     client.on("messageCreate", async (message) => {
 
-        if (!message.guild) return;
         if (message.author.bot) return;
+        if (!message.guild) return;
 
-        if (!bunkerState.enabled) return;
-
-        const isBunkerChannel = message.channel.parentId === CONFIG.CATEGORY_BUNKER;
-
-        // autorisé dans bunker category
-        if (isBunkerChannel) return;
-
-        // autoriser CEO et staff bunker
-        if (message.member.roles.cache.has(CONFIG.ROLE_CEO)) return;
-
-        // suppression + warning
-        await message.delete().catch(() => {});
-
-        return message.channel.send({
-            content: "🚨 Le mode BUNKER est activé. Vous ne pouvez pas écrire ici."
-        }).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
-    });
-
-    // =========================
-    // COMMANDES
-    // =========================
-    client.on("messageCreate", async (message) => {
-
-        if (!message.guild || message.author.bot) return;
-
-        const member = message.member;
-        if (!member.roles.cache.has(CONFIG.ROLE_CEO)) return;
-
-        const args = message.content.trim().split(" ");
+        const args = message.content.split(" ");
+        const cmd = args[0];
 
         // =========================
-        // ON
+        // +bunker on
         // =========================
-        if (args[0] === "+bunker" && args[1] === "on") {
-
-            if (bunkerState.enabled) {
-                return message.reply("⚠️ Bunker déjà actif.");
-            }
-
-            bunkerState.pending = {
-                requester: message.author.id
-            };
-
-            return message.reply(
-                "🛡️ Activation demandée.\n" +
-                "👉 2e CEO doit confirmer :\n" +
-                "`+bunker confirm <clé>`"
-            );
-        }
-
-        // =========================
-        // CONFIRM
-        // =========================
-        if (args[0] === "+bunker" && args[1] === "confirm") {
-
-            if (!bunkerState.pending) {
-                return message.reply("❌ Rien en attente.");
-            }
+        if (cmd === "+bunker" && args[1] === "on") {
 
             const key = args.slice(2).join(" ");
 
-            if (key !== CONFIG.SECRET_KEY) {
-                return message.reply("❌ Clé invalide.");
+            if (key !== BUNKER_KEY) {
+                return message.reply("❌ Clé bunker invalide.");
             }
 
-            if (!CONFIG.CEO_ALLOWED.includes(message.author.id)) {
-                return message.reply("❌ Pas autorisé.");
+            if (!isCEO(message.member)) {
+                return message.reply("❌ Tu n'es pas CEO.");
             }
 
-            bunkerState.enabled = true;
-            bunkerState.pending = null;
+            const userId = message.author.id;
+
+            if (!pendingConfirm.has("on")) {
+                pendingConfirm.set("on", new Set());
+            }
+
+            const set = pendingConfirm.get("on");
+            set.add(userId);
+
+            // attente 2 CEOs
+            if (set.size < 2) {
+                return message.reply("⏳ En attente du 2ème CEO pour activer le bunker.");
+            }
+
+            pendingConfirm.delete("on");
 
             await activateBunker(client, message.guild);
 
-            return message.reply("🚨 BUNKER ACTIVÉ");
+            return message.channel.send("🚨 MODE BUNKER ACTIVÉ !");
         }
 
         // =========================
-        // OFF
+        // +bunker off
         // =========================
-        if (args[0] === "+bunker" && args[1] === "off") {
+        if (cmd === "+bunker" && args[1] === "off") {
 
             const key = args.slice(2).join(" ");
 
-            if (key !== CONFIG.SECRET_KEY) {
-                return message.reply("❌ Clé invalide.");
+            if (key !== BUNKER_KEY) {
+                return message.reply("❌ Clé bunker invalide.");
             }
 
-            bunkerState.enabled = false;
+            if (!isCEO(message.member)) {
+                return message.reply("❌ Tu n'es pas CEO.");
+            }
+
+            const userId = message.author.id;
+
+            if (!pendingConfirm.has("off")) {
+                pendingConfirm.set("off", new Set());
+            }
+
+            const set = pendingConfirm.get("off");
+            set.add(userId);
+
+            if (set.size < 2) {
+                return message.reply("⏳ En attente du 2ème CEO pour désactiver le bunker.");
+            }
+
+            pendingConfirm.delete("off");
 
             await deactivateBunker(client, message.guild);
 
-            return message.reply("✅ BUNKER DÉSACTIVÉ");
+            return message.channel.send("🟢 MODE BUNKER DÉSACTIVÉ !");
         }
     });
-};
 
-// =========================
-// ACTIVATE
-// =========================
+    // =========================
+    // ANTI-BYPASS MESSAGE LOCK
+    // =========================
+    client.on("messageCreate", async (message) => {
 
-async function activateBunker(client, guild) {
+        if (!bunkerActive) return;
+        if (!message.guild) return;
+        if (message.author.bot) return;
 
-    const logs = guild.channels.cache.get(CONFIG.LOGS);
-    const staff = guild.channels.cache.get(CONFIG.STAFF);
+        const member = message.member;
 
-    const embed = new EmbedBuilder()
-        .setTitle("🚨 BUNKER ACTIVÉ")
-        .setColor("Red")
-        .setDescription("Serveur sécurisé.");
+        // autorisé bunker category
+        if (message.channel.parentId === BUNKER_CATEGORY) return;
 
-    if (logs) logs.send({ embeds: [embed] });
-    if (staff) staff.send({ embeds: [embed] });
+        if (!member.roles.cache.has(ROLE_BUNKER)) {
+            await message.delete().catch(() => {});
 
-    // LOCK ALL CHANNELS sauf bunker category
-    guild.channels.cache.forEach(async (channel) => {
-
-        if (channel.type !== ChannelType.GuildText) return;
-        if (channel.parentId === CONFIG.CATEGORY_BUNKER) return;
-
-        await safeEdit(channel, {
-            SendMessages: false
-        });
-    });
-}
-
-// =========================
-// DEACTIVATE
-// =========================
-
-async function deactivateBunker(client, guild) {
-
-    const logs = guild.channels.cache.get(CONFIG.LOGS);
-
-    const embed = new EmbedBuilder()
-        .setTitle("✅ BUNKER OFF")
-        .setColor("Green");
-
-    if (logs) logs.send({ embeds: [embed] });
-
-    // UNLOCK ALL CHANNELS
-    guild.channels.cache.forEach(async (channel) => {
-
-        if (channel.type !== ChannelType.GuildText) return;
-
-        await safeEdit(channel, {
-            SendMessages: true
-        }).catch(() => {});
+            return message.channel.send({
+                content: "🚨 Mode bunker actif : écriture bloquée.",
+                ephemeral: true
+            }).catch(() => {});
+        }
     });
 
-    // 🔥 SUPPRESSION DU RÔLE BUNKER AUX MEMBRES
-    const role = guild.roles.cache.get(CONFIG.ROLE_BUNKER);
+    // =========================
+    // FUNCTIONS
+    // =========================
 
-    if (role) {
-        guild.members.cache.forEach(member => {
-            member.roles.remove(role).catch(() => {});
+    async function activateBunker(client, guild) {
+
+        bunkerActive = true;
+
+        const members = await guild.members.fetch();
+
+        // 1. Give bunker role
+        members.forEach(m => {
+            if (!m.user.bot) {
+                m.roles.add(ROLE_BUNKER).catch(() => {});
+            }
         });
+
+        // 2. Lock all channels
+        guild.channels.cache.forEach(channel => {
+
+            if (channel.type === ChannelType.GuildText) {
+
+                if (channel.parentId === BUNKER_CATEGORY) return;
+
+                channel.permissionOverwrites.edit(guild.roles.everyone, {
+                    SendMessages: false,
+                    ViewChannel: false
+                }).catch(() => {});
+            }
+        });
+
+        // 3. Log
+        sendLog(client, guild, "🚨 BUNKER ACTIVÉ");
     }
-}
+
+    async function deactivateBunker(client, guild) {
+
+        bunkerActive = false;
+
+        const members = await guild.members.fetch();
+
+        // 1. Remove bunker role
+        members.forEach(m => {
+            m.roles.remove(ROLE_BUNKER).catch(() => {});
+        });
+
+        // 2. Unlock channels
+        guild.channels.cache.forEach(channel => {
+
+            if (channel.type === ChannelType.GuildText) {
+
+                channel.permissionOverwrites.edit(guild.roles.everyone, {
+                    SendMessages: true,
+                    ViewChannel: true
+                }).catch(() => {});
+            }
+        });
+
+        sendLog(client, guild, "🟢 BUNKER DÉSACTIVÉ");
+    }
+
+    function isCEO(member) {
+        return member.roles.cache.has(ROLE_CEO) || CEO_LIST.includes(member.id);
+    }
+
+    function sendLog(client, guild, text) {
+
+        const logChannel = guild.channels.cache.get(LOGS_CHANNEL);
+        if (!logChannel) return;
+
+        logChannel.send({
+            content: `📌 ${text} | ${new Date().toLocaleString()}`
+        }).catch(() => {});
+    }
+};
