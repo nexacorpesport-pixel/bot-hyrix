@@ -58,7 +58,7 @@ const bunkerSystem = require("./events/bunker");
 // =========================
 const bunkerState = {
     active: false,
-    key: "PXRBUNKER-9X7!VYRN-LOCK-9921", // clé secrète
+    key: "PX-BUNKER-9fX!2026#ULTRA_SECURE_KEY", // clé secrète
     confirmed: new Set(), // double CEO validation
     logsChannel: "1508090725672288387",
     bunkerCategory: "1508090450102456360"
