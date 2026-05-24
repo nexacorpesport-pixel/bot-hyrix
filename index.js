@@ -50,20 +50,6 @@ const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 
-// 🔥 BUNKER SYSTEM (IMPORTANT)
-const bunkerSystem = require("./events/bunker");
-
-// =========================
-// 🔐 BUNKER STATE GLOBAL (PARTAGÉ)
-// =========================
-const bunkerState = {
-    active: false,
-    key: "PX-BUNKER-9fX!2026#ULTRA_SECURE_KEY", // clé secrète
-    confirmed: new Set(), // double CEO validation
-    logsChannel: "1508090725672288387",
-    bunkerCategory: "1508090450102456360"
-};
-
 // =========================
 // CONFIG STATUS
 // =========================
