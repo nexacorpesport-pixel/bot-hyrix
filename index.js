@@ -17,7 +17,7 @@ const app = express();
 const PORT = 3000;
 
 app.get("/", (req, res) => {
-    res.send("Pyxar Bot Online");
+    res.send("HoveX Bot Online");
 });
 
 app.listen(PORT, () => {
@@ -55,7 +55,7 @@ const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
-const logsSystem = require("./events/logs"); // ✅ LOGS
+const logsSystem = require("./events/logs");
 
 // =========================
 // CONFIG STATUS
@@ -91,7 +91,7 @@ async function updateStatus() {
 
                 type: ActivityType.Streaming,
 
-                name: "#PXRWIN 💛🤍",
+                name: "#HvXWIN 🩷🤍",
 
                 url: TWITCH_URL
 
@@ -168,7 +168,7 @@ client.once("clientReady", async () => {
 
         moderation(client);
 
-        logsSystem(client); // ✅ LOAD LOGS
+        logsSystem(client);
 
         console.log("✅ Tous les systèmes chargés.");
 
