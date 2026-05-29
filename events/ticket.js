@@ -1,315 +1,142 @@
 // =====================================================
 // events/ticket.js
-// HOVEX TICKET SYSTEM V2 (PATCH)
+// MODE MAINTENANCE - PYXAR / HOVEX
 // =====================================================
 
 const {
     EmbedBuilder,
     ActionRowBuilder,
-    StringSelectMenuBuilder,
     ButtonBuilder,
-    ButtonStyle,
-    PermissionsBitField,
-    ChannelType,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle
+    ButtonStyle
 } = require("discord.js");
 
 const config = require("../data/ticketConfig");
 
-const ticketCooldown = new Map();
+// =====================================================
+// MAINTENANCE CONFIG
+// =====================================================
+
+const MAINTENANCE = true; // 🔴 ACTIVE / DESACTIVE ICI
+const MAINTENANCE_DURATION_HOURS = 4;
+
+// heure de fin calculée
+const endTime = Date.now() + MAINTENANCE_DURATION_HOURS * 60 * 60 * 1000;
+
+// =====================================================
+// EXPORT
+// =====================================================
 
 module.exports = async (client) => {
 
     try {
 
-        console.log("[TICKET] Chargement du système...");
+        console.log("[TICKET] Mode maintenance chargé...");
 
-        const channel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
+        const channel = await client.channels.fetch(config.PANEL_CHANNEL);
 
-        if (!channel) return console.log("[TICKET] Salon introuvable.");
+        if (!channel) {
+            return console.log("[TICKET] Panel introuvable.");
+        }
 
         // =====================================================
-        // PANEL EMBED (STYLÉ)
+        // TIMER FORMAT
         // =====================================================
+
+        function formatRemaining(ms) {
+
+            const totalSeconds = Math.floor(ms / 1000);
+
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            return `${hours}h ${minutes}m ${seconds}s`;
+        }
+
+        const remaining = endTime - Date.now();
+
+        // =====================================================
+        // PANEL EMBED
+        // =====================================================
+
         const embed = new EmbedBuilder()
-            .setColor("#ffb347")
-            .setTitle("🎫 HOVEX SUPPORT CENTER")
+            .setColor("#ff0000")
+            .setTitle("🚧 SYSTÈME DE TICKETS EN MAINTENANCE")
             .setDescription(`
-✨ Bienvenue dans le système officiel
+⚠️ Le système de tickets est actuellement **désactivé temporairement**
 
 ━━━━━━━━━━━━━━━━━━
 
-🛡️ **STAFF**
-→ Recrutement équipe
+🛠️ Raison :
+Mise à jour du système de recrutement + amélioration globale du panel
 
-🎮 **JOUEUR**
-→ Grinder / Esport / PR System
+⏳ Durée estimée :
+**${MAINTENANCE_DURATION_HOURS} heures max**
 
-🎬 **AUDIOVISUEL**
-→ Création / montage / design
+🕒 Temps restant estimé :
+**${formatRemaining(remaining)}**
 
-🆘 **ASSISTANCE**
-🚧 Maintenance en cours
-
-🤝 **PARTENARIAT**
-🚧 Maintenance en cours
-
-📩 **AUTRE**
-→ Support général
+📌 Retour prévu vers :
+<t:${Math.floor(endTime / 1000)}:F>
 
 ━━━━━━━━━━━━━━━━━━
 
-⚠️ Système en amélioration continue
-            `)
-            .setFooter({ text: "HOVEX • Ticket System V2" });
+Merci de votre patience 💛
+        `)
+            .setFooter({ text: "HoveX / Ticket System Maintenance" });
 
         // =====================================================
-        // MENU STYLÉ + LOCK SYSTEM
+        // BUTTONS (disabled style)
         // =====================================================
-        const menu = new StringSelectMenuBuilder()
-            .setCustomId("ticket_select")
-            .setPlaceholder("🎫 Ouvre un ticket")
-            .addOptions([
-                {
-                    label: "🛡️ Recrutement Staff",
-                    value: "staff",
-                    description: "Rejoins l'équipe staff"
-                },
-                {
-                    label: "🎮 Recrutement Joueur",
-                    value: "joueur",
-                    description: "Grinder / compétitif / PR system"
-                },
-                {
-                    label: "🎬 Audiovisuel",
-                    value: "audiovisuel",
-                    description: "Création & contenu"
-                },
-                {
-                    label: "🆘 Assistance (MAINTENANCE)",
-                    value: "locked",
-                    description: "Système temporairement indisponible"
-                },
-                {
-                    label: "🤝 Partenariat (MAINTENANCE)",
-                    value: "locked",
-                    description: "Bientôt disponible"
-                },
-                {
-                    label: "📩 Autre",
-                    value: "autre",
-                    description: "Support général"
-                }
-            ]);
 
-        const row = new ActionRowBuilder().addComponents(menu);
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId("maintenance")
+                .setLabel("Système en maintenance")
+                .setEmoji("🛑")
+                .setStyle(ButtonStyle.Danger)
+                .setDisabled(true),
+
+            new ButtonBuilder()
+                .setCustomId("info")
+                .setLabel("Infos système")
+                .setEmoji("ℹ️")
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true)
+        );
 
         await channel.send({
             embeds: [embed],
             components: [row]
         });
 
-        console.log("[TICKET] Panel envoyé.");
+        console.log("[TICKET] Panel maintenance envoyé.");
+
+        // =====================================================
+        // BLOCK ALL INTERACTIONS (SAFE GUARD)
+        // =====================================================
+
+        client.on("interactionCreate", async (interaction) => {
+
+            if (!interaction.isStringSelectMenu()) return;
+
+            if (interaction.customId !== "ticket_select") return;
+
+            if (MAINTENANCE) {
+
+                return interaction.reply({
+                    ephemeral: true,
+                    content:
+                        "🚧 Système de tickets en maintenance. Réouverture prochainement."
+                });
+
+            }
+        });
 
     } catch (err) {
-        console.log("[TICKET] Erreur :", err);
+
+        console.log("[TICKET] Erreur maintenance:");
+        console.log(err);
+
     }
-
-    // =====================================================
-    // INTERACTIONS (GLOBAL LISTENER SAFE)
-    // =====================================================
-    client.on("interactionCreate", async (i) => {
-
-        // =========================
-        // MENU
-        // =========================
-        if (i.isStringSelectMenu() && i.customId === "ticket_select") {
-
-            const type = i.values[0];
-
-            // 🚧 LOCK SYSTEM
-            if (type === "locked") {
-                return i.reply({
-                    content: "🚧 Ce système est en maintenance. Réessaie plus tard.",
-                    ephemeral: true
-                });
-            }
-
-            const existing = i.guild.channels.cache.find(
-                c => c.name === `ticket-${i.user.username}`
-            );
-
-            if (existing) {
-                return i.reply({
-                    content: `❌ Ticket déjà existant : ${existing}`,
-                    ephemeral: true
-                });
-            }
-
-            const category = config.CATEGORIES[type];
-
-            const ticket = await i.guild.channels.create({
-                name: `ticket-${i.user.username}`,
-                type: ChannelType.GuildText,
-                parent: category,
-                permissionOverwrites: [
-                    {
-                        id: i.guild.id,
-                        deny: [PermissionsBitField.Flags.ViewChannel]
-                    },
-                    {
-                        id: i.user.id,
-                        allow: [
-                            PermissionsBitField.Flags.ViewChannel,
-                            PermissionsBitField.Flags.SendMessages,
-                            PermissionsBitField.Flags.ReadMessageHistory
-                        ]
-                    }
-                ]
-            });
-
-            const buttons = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId("claim").setLabel("📌 Claim").setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("close").setLabel("🔒 Close").setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId("delete").setLabel("🗑️ Delete").setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId("help").setLabel("❓ Help").setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId("form_joueur").setLabel("🎮 Formulaire PR").setStyle(ButtonStyle.Success)
-            );
-
-            const embedTicket = new EmbedBuilder()
-                .setColor("#ffb347")
-                .setTitle("🎫 TICKET OUVERT")
-                .setDescription(`
-👋 Bienvenue ${i.user}
-
-━━━━━━━━━━━━━━━━━━
-
-📌 Explique ta demande clairement
-⏱️ Réponse rapide du staff
-🚫 Pas de spam
-
-━━━━━━━━━━━━━━━━━━
-                `)
-                .setFooter({ text: "HOVEX SUPPORT" });
-
-            await ticket.send({
-                content: `<@${i.user.id}>`,
-                embeds: [embedTicket],
-                components: [buttons]
-            });
-
-            // =========================
-            // STAFF / AUTRES FORMS
-            // =========================
-            if (type === "staff") {
-                await ticket.send({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setTitle("🛡️ Recrutement Staff")
-                            .setColor("#ffb347")
-                            .setDescription("Réponds directement dans le ticket.")
-                    ]
-                });
-            }
-
-            if (type === "audiovisuel") {
-                await ticket.send({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setTitle("🎬 Audiovisuel")
-                            .setColor("#ffb347")
-                            .setDescription("Présente ton portfolio et ton expérience.")
-                    ]
-                });
-            }
-
-            return i.reply({
-                content: "✅ Ticket créé",
-                ephemeral: true
-            });
-        }
-
-        // =========================
-        // FORM JOUEUR
-        // =========================
-        if (i.isButton() && i.customId === "form_joueur") {
-
-            const modal = new ModalBuilder()
-                .setCustomId("joueur_form")
-                .setTitle("🎮 Recrutement Joueur");
-
-            const pr = new TextInputBuilder()
-                .setCustomId("pr")
-                .setLabel("PR EU")
-                .setStyle(TextInputStyle.Short);
-
-            const age = new TextInputBuilder()
-                .setCustomId("age")
-                .setLabel("Âge")
-                .setStyle(TextInputStyle.Short);
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(pr),
-                new ActionRowBuilder().addComponents(age)
-            );
-
-            return i.showModal(modal);
-        }
-
-        // =========================
-        // FORM SUBMIT
-        // =========================
-        if (i.isModalSubmit() && i.customId === "joueur_form") {
-
-            const pr = parseInt(i.fields.getTextInputValue("pr"));
-            const age = i.fields.getTextInputValue("age");
-
-            return i.reply({
-                content: `
-🎮 **CANDIDATURE ENREGISTRÉE**
-
-👤 ${i.user}
-
-━━━━━━━━━━━━━━━━━━
-
-📊 PR : ${pr}
-🎂 Âge : ${age}
-
-━━━━━━━━━━━━━━━━━━
-
-🏆 Analyse en cours...
-                `,
-                ephemeral: true
-            });
-        }
-
-        // =========================
-        // BUTTONS
-        // =========================
-        if (!i.isButton()) return;
-
-        if (i.customId === "claim") return i.reply(`📌 Claim par ${i.user}`);
-
-        if (i.customId === "close") {
-            await i.channel.permissionOverwrites.edit(i.guild.roles.everyone, {
-                SendMessages: false
-            });
-            return i.reply("🔒 fermé");
-        }
-
-        if (i.customId === "delete") {
-            await i.reply("🗑️ suppression 5s");
-            setTimeout(() => i.channel.delete().catch(() => {}), 5000);
-        }
-
-        if (i.customId === "help") {
-            return i.reply({
-                ephemeral: true,
-                content: "📩 Un staff va arriver"
-            });
-        }
-
-    });
 };
