@@ -1,6 +1,7 @@
 module.exports = {
 
     PANEL_CHANNEL: "1505330772343656680",
+    TEST_MODO_ROLE: "1505330702793576568", // Ton rôle Test Modérateur
 
     CATEGORIES: {
         staff: "1505559323105951744",
@@ -17,6 +18,15 @@ module.exports = {
         audiovisuel: ["1505330692106485781", "1505330696619688027", "1505330697806811271"],
         aide: ["1505330692106485781", "1505330696619688027", "1505330697806811271"],
         autre: ["1505330692106485781", "1505330696619688027", "1505330697806811271"]
+    },
+
+    // Rôles spécifiques Audiovisuel (Exemples d'IDs à adapter si tu veux les donner automatiquement)
+    AUDIO_ROLES: {
+        monteur: "1505330702793576568", 
+        graphiste: "1505330702793576568",
+        mapper: "1505330702793576568",
+        maker: "1505330702793576568",
+        caster: "1505330702793576568"
     },
 
     PR_ROLES: [
