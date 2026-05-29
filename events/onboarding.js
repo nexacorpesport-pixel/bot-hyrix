@@ -11,8 +11,8 @@ const {
 // Stockages en mémoire volatile (RAM)
 const captchaStorage = new Map();
 const captchaAttempts = new Map();
-const userChannels = new Map(); // Associe l'ID du membre à l'ID de son salon d'onboarding
-const renameChoice = new Map(); // Stocke si le membre veut le préfixe HvX ou non
+const userChannels = new Map(); 
+const renameChoice = new Map(); 
 
 module.exports = (client) => {
 
@@ -22,7 +22,7 @@ module.exports = (client) => {
     const CATEGORY_ONBOARDING = "1505330761153380476"; 
     const LOGS_CHANNEL = "1510039415454568569";
 
-    const ARRIVE_ROLE = "1505625588121997572";
+    const ARRIVE_ROLE = "1505625588121997572"; // Ton rôle d'arrivée
     const HOMME_ROLE = "1505330737187131544";
     const FEMME_ROLE = "1505330738772574208";
     const NP_ROLE = "1505330739753783458";
@@ -42,7 +42,6 @@ module.exports = (client) => {
 
     const BIENVENUE_CHANNEL = "1505330766047875242";
 
-    // Nettoyage automatique des rôles si le joueur clique sur "Recommencer"
     const clearOnboardingRoles = async (member) => {
         const rolesToRemove = [
             HOMME_ROLE, FEMME_ROLE, NP_ROLE, 
@@ -57,7 +56,7 @@ module.exports = (client) => {
     };
 
     // =====================================================
-    // 🧹 ANTI-BUG : PURGE DES SALONS ABANDONNÉS AU DEMARRAGE
+    // 🧹 NETTOYAGE AU DEMARRAGE
     // =====================================================
     client.once("ready", async () => {
         console.log("[ONBOARDING] Scan et nettoyage des salons temporaires abandonnés...");
@@ -73,7 +72,7 @@ module.exports = (client) => {
     });
 
     // =====================================================
-    // 🚪 SÉCURITÉ : LE MEMBRE QUITTE PENDANT SON ONBOARDING
+    // 🚪 LE MEMBRE QUITTE EN COURS
     // =====================================================
     client.on("guildMemberRemove", async (member) => {
         const channelId = userChannels.get(member.id);
@@ -92,7 +91,7 @@ module.exports = (client) => {
                     embeds: [
                         new EmbedBuilder()
                             .setColor("Red")
-                            .setDescription(`🚪 ${member.user.tag} a **quitté le serveur** en plein onboarding. Salon fermé.`)
+                            .setDescription(`🚪 ${member.user.tag} a **quitté le serveur** pendant son onboarding. Salon fermé.`)
                     ]
                 }).catch(() => {});
             }
@@ -100,26 +99,15 @@ module.exports = (client) => {
     });
 
     // =====================================================
-    // 👋 LOGIQUE PRINCIPALE D'ARRIVÉE
+    // 👋 LOGIQUE DE CRÉATION ET ATTRIBUTION DE RÔLE
     // =====================================================
     client.on("guildMemberAdd", async (member) => {
         try {
             if (member.user.bot) return;
 
-            const arriveRole = member.guild.roles.cache.get(ARRIVE_ROLE);
-            if (arriveRole) await member.roles.add(arriveRole).catch(() => {});
+            console.log(`[ONBOARDING] Nouveau membre détecté : ${member.user.tag}`);
 
-            const logChan = await member.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logChan) {
-                logChan.send({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor("Yellow")
-                            .setDescription(`🛫 **Début d'onboarding** pour ${member} (\`${member.id}\`). Création du salon...`)
-                    ]
-                }).catch(() => {});
-            }
-
+            // 1. CRÉATION DU SALON EN PREMIER (Évite le blocage si le rôle bug)
             const channel = await member.guild.channels.create({
                 name: `👋┃${member.user.username.toLowerCase()}`,
                 type: ChannelType.GuildText,
@@ -135,16 +123,40 @@ module.exports = (client) => {
                         ]
                     }
                 ]
+            }).catch((err) => {
+                console.error("❌ Impossible de créer le salon d'onboarding ! Vérifie les permissions du bot.", err);
+                return null;
             });
+
+            if (!channel) return; // Si le salon n'a pas pu être créé, on stoppe.
 
             userChannels.set(member.id, channel.id);
 
-            // Boutons de contrôle universels
+            // 2. AJOUT DU RÔLE D'ARRIVÉE IMMEDIAT (Sécurisé par un catch)
+            await member.roles.add(ARRIVE_ROLE)
+                .then(() => console.log(`[ONBOARDING] Rôle d'arrivée attribué à ${member.user.tag}`))
+                .catch((err) => {
+                    console.error(`❌ Impossible de donner le rôle d'arrivée à ${member.user.tag}. Vérifie que le rôle du bot est bien AU-DESSUS du rôle d'arrivée dans les paramètres du serveur Discord !`);
+                });
+
+            // Envoi du log staff
+            const logChan = await member.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChan) {
+                logChan.send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setColor("Yellow")
+                            .setDescription(`🛫 **Début d'onboarding** pour ${member} (\`${member.id}\`). Salon créé : <#${channel.id}>`)
+                    ]
+                }).catch(() => {});
+            }
+
+            // Boutons de contrôle
             const helpButton = new ButtonBuilder().setCustomId("ob_help").setLabel("Besoin d'aide").setStyle(ButtonStyle.Secondary);
             const resetButton = new ButtonBuilder().setCustomId("ob_reset").setLabel("Recommencer").setStyle(ButtonStyle.Danger);
             const actionRowControls = new ActionRowBuilder().addComponents(helpButton, resetButton);
 
-            // ---- ÉTAPE 1 : GENRE (FONCTION ENCAPSULÉE POUR RESET) ----
+            // Fonction pour l'étape du Genre
             const sendEtapeGenre = async (targetChannel, isReset = false) => {
                 const genreMenu = new StringSelectMenuBuilder()
                     .setCustomId("ob_genre")
@@ -181,7 +193,6 @@ module.exports = (client) => {
                     return interaction.reply({ content: "❌ Ce menu ne t'appartient pas.", ephemeral: true });
                 }
 
-                // Bouton aide
                 if (interaction.customId === "ob_help") {
                     if (logChan) {
                         logChan.send({ content: `⚠️ <@&${CEO_ROLE}> Assistance demandée dans <#${channel.id}> par ${member}.` }).catch(() => {});
@@ -189,7 +200,6 @@ module.exports = (client) => {
                     return interaction.reply({ content: `🔔 Demande transmise. L'équipe <@&${CEO_ROLE}> arrive.`, ephemeral: false });
                 }
 
-                // Bouton Recommencer
                 if (interaction.customId === "ob_reset") {
                     await clearOnboardingRoles(member);
                     renameChoice.delete(member.id);
@@ -198,7 +208,7 @@ module.exports = (client) => {
                     return interaction.update(resetPayload);
                 }
 
-                // ÉTAPE 1 -> ÉTAPE 2 (Genre -> Notifications)
+                // ÉTAPE 1 -> ÉTAPE 2
                 if (interaction.customId === "ob_genre") {
                     const value = interaction.values[0];
                     let prefix = "👋";
@@ -211,7 +221,7 @@ module.exports = (client) => {
 
                     const notifMenu = new StringSelectMenuBuilder()
                         .setCustomId("ob_notif")
-                        .setPlaceholder("🔔 Choisis tes notifications (Plusieurs choix)...")
+                        .setPlaceholder("🔔 Choisis tes notifications...")
                         .setMinValues(1).setMaxValues(4)
                         .addOptions([
                             { label: "Annonces", value: "annonces", emoji: "📢" },
@@ -228,7 +238,7 @@ module.exports = (client) => {
                     return interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(notifMenu), actionRowControls] });
                 }
 
-                // ÉTAPE 2 -> ÉTAPE 3 (Notifications -> Objectif)
+                // ÉTAPE 2 -> ÉTAPE 3
                 if (interaction.customId === "ob_notif") {
                     if (interaction.values.includes("annonces")) await member.roles.add(ANNONCES_ROLE).catch(() => {});
                     if (interaction.values.includes("lives")) await member.roles.add(LIVES_ROLE).catch(() => {});
@@ -251,7 +261,7 @@ module.exports = (client) => {
                     return interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(objectifMenu), actionRowControls] });
                 }
 
-                // ÉTAPE 3 -> ÉTAPE 4 (Objectif -> Source Marketing)
+                // ÉTAPE 3 -> ÉTAPE 4
                 if (interaction.customId === "ob_objectif") {
                     const value = interaction.values[0];
                     if (value === "joueur") await member.roles.add(JOUEUR_ROLE).catch(() => {});
@@ -276,7 +286,7 @@ module.exports = (client) => {
                     return interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(sourceMenu), actionRowControls] });
                 }
 
-                // ÉTAPE 4 -> ÉTAPE 5 (Source -> Surnom HvX) **NOUVEAU**
+                // ÉTAPE 4 -> ÉTAPE 5
                 if (interaction.customId === "ob_source") {
                     const sourceChoisie = interaction.values[0];
                     if (logChan) {
@@ -289,13 +299,13 @@ module.exports = (client) => {
 
                     const embed = new EmbedBuilder()
                         .setColor("#ffb347")
-                        .setTitle("🧬 Identité Visuelle : Représente la structure")
-                        .setDescription(`Souhaites-tu arborer fièrement le préfixe de la communauté devant ton pseudonyme sur le serveur ?\n\nExemple : \`HvX ${member.user.username}\`\n\n*Ce choix est purement esthétique et modifiable plus tard.*\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩⬜⬜ **5/7 (Identité)**`);
+                        .setTitle("🧬 Identité Visuelle")
+                        .setDescription(`Souhaites-tu arborer le préfixe de la structure devant ton pseudo sur le serveur ?\n\nExemple : \`HvX ${member.user.username}\`\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩⬜⬜ **5/7 (Identité)**`);
 
                     return interaction.update({ embeds: [embed], components: [rowRename, actionRowControls] });
                 }
 
-                // ÉTAPE 5 -> ÉTAPE 6 (Surnom -> Règlement) **NOUVEAU**
+                // ÉTAPE 5 -> ÉTAPE 6
                 if (interaction.customId === "rename_yes" || interaction.customId === "rename_no") {
                     const veutRenommer = interaction.customId === "rename_yes";
                     renameChoice.set(member.id, veutRenommer);
@@ -303,17 +313,17 @@ module.exports = (client) => {
                     const rulesMenu = new StringSelectMenuBuilder()
                         .setCustomId("ob_rules")
                         .setPlaceholder("⚖️ Acceptation des conditions...")
-                        .addOptions([{ label: "J'ai lu et j'accepte le règlement de Pyxar", value: "accept", emoji: "✅" }]);
+                        .addOptions([{ label: "J'ai lu et j'accepte le règlement", value: "accept", emoji: "✅" }]);
 
                     const embed = new EmbedBuilder()
                         .setColor("#ffb347")
                         .setTitle("📖 Règlement Intérieur")
-                        .setDescription(`Prends connaissance de nos règles de conduite fondamentales. Tout manquement sera sanctionné.\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩🟩⬜ **6/7 (Règlement)**`);
+                        .setDescription(`Prends connaissance de nos règles de conduite fondamentales.\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩🟩⬜ **6/7 (Règlement)**`);
 
                     return interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(rulesMenu), actionRowControls] });
                 }
 
-                // ÉTAPE 6 -> ÉTAPE 7 (Règlement -> Saisie Captcha)
+                // ÉTAPE 6 -> ÉTAPE 7
                 if (interaction.customId === "ob_rules") {
                     const code = Math.floor(1000 + Math.random() * 9000);
                     captchaStorage.set(member.id, code);
@@ -321,16 +331,14 @@ module.exports = (client) => {
 
                     const embed = new EmbedBuilder()
                         .setColor("#ffb347")
-                        .setTitle("🛡️ Validation Humaine (Anti-Bot)")
-                        .setDescription(`Dernière ligne droite ! Merci de recopier le code de sécurité ci-dessous par écrit dans le chat.\n\n# 🔢 Code : \`${code}\`\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩🟩🟩 **7/7 (Captcha)**`);
+                        .setTitle("🛡️ Validation Humaine")
+                        .setDescription(`Merci de recopier le code ci-dessous par écrit dans le chat.\n\n# 🔢 Code : \`${code}\`\n\n**📊 Progression :**\n🟩🟩🟩🟩🟩🟩🟩 **7/7 (Captcha)**`);
 
-                    return interaction.update({ embeds: [embed], components: [] }); // Suppression des boutons pour l'écriture chat
+                    return interaction.update({ embeds: [embed], components: [] }); 
                 }
             });
 
-            // =====================================================
-            // SÉCURITÉ CAPTCHA & FINALISATION DU PROFIL
-            // =====================================================
+            // Saisie Captcha
             msgCollector.on("collect", async (msg) => {
                 if (msg.author.bot || msg.author.id !== member.id) return;
 
@@ -345,40 +353,36 @@ module.exports = (client) => {
                         const newCode = Math.floor(1000 + Math.random() * 9000);
                         captchaStorage.set(member.id, newCode);
                         captchaAttempts.set(member.id, 0);
-                        return msg.reply(`❌ **Trop d'échecs.** Code réinitialisé. Écris le nouveau code : \`${newCode}\``).catch(() => {});
+                        return msg.reply(`❌ **Trop d'échecs.** Code réinitialisé : \`${newCode}\``).catch(() => {});
                     } else {
-                        return msg.reply(`❌ **Code incorrect.** Il te reste **${3 - attempts} essai(s)** avant renouvellement du code.`).catch(() => {});
+                        return msg.reply(`❌ **Code incorrect.** Il te reste **${3 - attempts} essai(s)**.`).catch(() => {});
                     }
                 }
 
-                // ---- VALIDATION STRICTE ET EXPULSION DU SALON D'ONBOARDING ----
+                // Validation Finale
                 msgCollector.stop();
                 compCollector.stop();
                 captchaStorage.delete(member.id);
                 captchaAttempts.delete(member.id);
                 userChannels.delete(member.id);
 
-                // Application du changement de pseudo si accepté à l'étape 5
                 const changePseudo = renameChoice.get(member.id);
                 if (changePseudo === true) {
-                    await member.setNickname(`HvX ${member.user.username}`).catch((err) => {
-                        console.log(`[PSEUDO-ERROR] Impossible de renommer ${member.user.username} (Probablement permissions trop hautes ou propriétaire du serveur)`);
-                    });
+                    await member.setNickname(`HvX ${member.user.username}`).catch(() => {});
                 }
                 renameChoice.delete(member.id);
 
-                // Rôles d'accès globaux
                 await member.roles.add(ACCESS_ROLE).catch(() => {});
                 await member.roles.add(VERIFIED_ROLE).catch(() => {});
                 await member.roles.add(MEMBER_ROLE).catch(() => {});
-                if (arriveRole) await member.roles.remove(arriveRole).catch(() => {});
+                await member.roles.remove(ARRIVE_ROLE).catch(() => {}); // Retire le rôle d'arrivée
 
                 if (logChan) {
                     logChan.send({
                         embeds: [
                             new EmbedBuilder()
                                 .setColor("Green")
-                                .setDescription(`✅ **Onboarding Complété** pour ${member} (\`${member.id}\`). Le salon va s'autodétruire.`)
+                                .setDescription(`✅ **Onboarding Complété** pour ${member} (\`${member.id}\`).`)
                         ]
                     }).catch(() => {});
                 }
@@ -386,14 +390,11 @@ module.exports = (client) => {
                 const endEmbed = new EmbedBuilder()
                     .setColor("#57f287")
                     .setTitle("✅ Configuration Terminée !")
-                    .setDescription("Ton profil est validé. L'intégralité du serveur s'ouvre à toi dès maintenant !");
+                    .setDescription("Ton profil est validé. L'accès complet au serveur t'attend !");
 
                 await channel.send({ embeds: [endEmbed] }).catch(() => {});
+                await member.send(`🎉 Bienvenue sur **Pyxar** ! Rejoins-nous ici : <#${BIENVENUE_CHANNEL}>`).catch(() => {});
 
-                // Envoi du MP final de bienvenue
-                await member.send(`🎉 Bienvenue sur **Pyxar** !\n\nTon onboarding s'est déroulé à la perfection. Rejoins les autres membres ici : <#${BIENVENUE_CHANNEL}>`).catch(() => {});
-
-                // Suppression propre du salon temporaire après 5 secondes
                 setTimeout(async () => {
                     await channel.delete().catch(() => {});
                 }, 5000);
