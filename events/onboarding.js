@@ -19,7 +19,7 @@ module.exports = (client) => {
     // =====================================================
     // 🛡️ CONFIGURATION DES IDENTIFIANTS (IDS)
     // =====================================================
-    const CATEGORY_ONBOARDING = "1505330761153380476"; 
+    const CATEGORY_ONBOARDING = "1510048386626093217"; 
     const LOGS_CHANNEL = "1510039415454568569";
 
     // Configuration stricte des rôles demandés
