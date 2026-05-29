@@ -13,145 +13,125 @@ const {
 
 const config = require("../data/ticketConfig");
 
-// =========================
-// CHANNELS STATIQUES
-// =========================
 const LOGS_CHANNEL = "1508157026491175002";
 const ARCHIVE_CHANNEL = "1510019228047114300";
 
-// =========================
-// STOCKAGE EN MÉMOIRE
-// =========================
-const cooldown = new Map();
-const ticketData = new Map(); // Permet de suivre l'état de chaque ticket (ID du membre, PR, pseudo, etc.)
+const ticketCooldown = new Map();
+const sessionContext = new Map(); // Garde en mémoire l'ID de l'utilisateur pour le salon du ticket
 
 module.exports = async (client) => {
 
-    console.log("[TICKET] Support HoveX prêt et configuré.");
-
-    const channel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
-    if (!channel) return console.log("⚠️ Le salon du Panel est introuvable.");
+    console.log("[TICKET] Initialisation du système HoveX...");
 
     // =====================================================
-    // ENVOI DU PANEL PRINCIPAL (Optionnel: nettoie avant pour éviter les doublons)
+    // ENVOI DU PANEL (Sécurisé pour éviter les blocages)
     // =====================================================
+    const panelChannel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
+    if (!panelChannel) {
+        return console.log("[TICKET] Erreur : Salon Panel introuvable. Vérifie l'ID dans le fichier config.");
+    }
+
+    // Suppression des anciens messages du bot dans ce salon pour actualiser proprement le panel
+    const cachedMessages = await panelChannel.messages.fetch({ limit: 10 }).catch(() => null);
+    if (cachedMessages) {
+        const botMessages = cachedMessages.filter(m => m.author.id === client.user.id);
+        for (const msg of botMessages.values()) {
+            await msg.delete().catch(() => {});
+        }
+    }
+
     const panelEmbed = new EmbedBuilder()
         .setColor("#ffb347")
         .setTitle("🎫 HoveX Support System")
-        .setDescription(`Bienvenue dans le support officiel.\n\nChoisis une catégorie :\n\n🛡️ Staff\n🎮 Joueur (PR System)\n🎬 Audiovisuel\n🆘 Aide\n🤝 Partenariat\n\n⚠️ *Un seul ticket autorisé à la fois.*`);
+        .setDescription("Bienvenue sur le support officiel de la structure.\n\nSélectionnez la catégorie correspondante à votre demande ci-dessous :\n\n🛡️ **Staff**\n🎮 **Joueur (PR System)**\n🎬 **Audiovisuel**\n🆘 **Assistance / Aide**\n🤝 **Partenariat**\n\n⚠️ *Un seul ticket actif par utilisateur.*");
 
-    const menu = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId("ticket_select")
-            .setPlaceholder("Sélectionne une catégorie")
-            .addOptions([
-                { label: "Staff", value: "staff", emoji: "🛡️" },
-                { label: "Joueur", value: "joueur", emoji: "🎮" },
-                { label: "Audiovisuel", value: "audiovisuel", emoji: "🎬" },
-                { label: "Aide", value: "aide", emoji: "🆘" },
-                { label: "Partenariat", value: "partenariat", emoji: "🤝" }
-            ])
-    );
+    const menuSelection = new StringSelectMenuBuilder()
+        .setCustomId("ticket_select")
+        .setPlaceholder("Sélectionne une catégorie...")
+        .addOptions([
+            { label: "Staff", value: "staff", emoji: "🛡️" },
+            { label: "Joueur", value: "joueur", emoji: "🎮" },
+            { label: "Audiovisuel", value: "audiovisuel", emoji: "🎬" },
+            { label: "Assistance", value: "aide", emoji: "🆘" },
+            { label: "Partenariat", value: "partenariat", emoji: "🤝" }
+        ]);
 
-    // Envoi initial du panel (Commenter cette ligne si tu veux l'envoyer via une commande dédiée pour éviter le spam au reboot)
-    // await channel.send({ embeds: [panelEmbed], components: [menu] });
+    await panelChannel.send({
+        embeds: [panelEmbed],
+        components: [new ActionRowBuilder().addComponents(menuSelection)]
+    }).then(() => console.log("[TICKET] Panel envoyé avec succès !")).catch(err => console.log("[TICKET] Erreur envoi panel :", err));
 
     // =====================================================
-    // GESTIONNAIRE D'INTERACTIONS
+    // GESTION DES INTERACTIONS
     // =====================================================
-    client.on("interactionCreate", async (interaction) => {
-        if (!interaction.guild) return;
+    client.on("interactionCreate", async (i) => {
+        if (!i.guild) return;
 
-        // 1. SÉLECTION D'UNE CATÉGORIE DE TICKET
-        if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
-            const userId = interaction.user.id;
-            const type = interaction.values[0];
+        // --- OUVERTURE DU TICKET ---
+        if (i.isStringSelectMenu() && i.customId === "ticket_select") {
+            const type = i.values[0];
 
-            if (cooldown.has(userId)) {
-                return interaction.reply({ content: "⏳ Tu as déjà un ticket ou une demande active.", ephemeral: true });
+            if (ticketCooldown.has(i.user.id)) {
+                return i.reply({ content: "⏳ Tu as déjà un ticket actif ou une demande en cours.", ephemeral: true });
             }
 
-            cooldown.set(userId, true);
-            const targetCategory = config.CATEGORIES[type === "partenariat" ? "autre" : type];
+            const categoryId = config.CATEGORIES[type];
+            ticketCooldown.set(i.user.id, true);
 
-            // Configuration de base des permissions
-            const permissionOverwrites = [
-                { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
+            // Structure des permissions de base
+            const basePermissions = [
+                { id: i.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                { id: i.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
             ];
 
-            // Ajout automatique des rôles Staff spécifiques à la catégorie
-            const allowedRoles = config.ROLES[type === "partenariat" ? "autre" : type] || [];
-            allowedRoles.forEach(roleId => {
-                permissionOverwrites.push({
+            // Assignation automatique des permissions pour le staff concerné
+            const staffRoles = config.ROLES[type] || [];
+            staffRoles.forEach(roleId => {
+                basePermissions.push({
                     id: roleId,
                     allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
                 });
             });
 
-            // Création du salon de ticket dans la bonne catégorie
-            const ticket = await interaction.guild.channels.create({
-                name: `${type}-${interaction.user.username}`,
+            const ticketChannel = await i.guild.channels.create({
+                name: `${type}-${i.user.username}`,
                 type: ChannelType.GuildText,
-                parent: targetCategory || null,
-                permissionOverwrites: permissionOverwrites
+                parent: categoryId || null,
+                permissionOverwrites: basePermissions
             });
 
-            // Stockage initial des données du ticket
-            ticketData.set(ticket.id, { creatorId: userId, type: type, step: "init" });
+            sessionContext.set(ticketChannel.id, { userId: i.user.id, type: type });
 
-            // Message de bienvenue standard avec les boutons principaux
-            const baseEmbed = new EmbedBuilder()
-                .setColor("#ffb347")
-                .setTitle(`🎫 Ticket ${type.toUpperCase()} ouvert`)
-                .setDescription(`Bienvenue ${interaction.user}. Le staff a été notifié.`);
-
-            const buttons = new ActionRowBuilder().addComponents(
+            // Boutons d'administration standard du ticket
+            const actionButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary).setEmoji("📌"),
                 new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Secondary).setEmoji("🔒"),
                 new ButtonBuilder().setCustomId("delete").setLabel("Delete").setStyle(ButtonStyle.Danger).setEmoji("🗑️")
             );
 
-            await ticket.send({ embeds: [baseEmbed], components: [buttons] });
+            // Message d'accueil personnalisé par section
+            let sectionEmbed = new EmbedBuilder().setColor("#ffb347").setTitle(`🎫 Ticket ${type.toUpperCase()} Ouvert`).setDescription(`Bonjour ${i.user}, le staff a été alerté de ton ouverture de ticket. Précise ta demande.`);
 
-            // LOG de création du ticket
-            const logsChan = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logsChan) {
-                logsChan.send({
-                    embeds: [new EmbedBuilder().setColor("Blue").setTitle("📩 Nouveau ticket créé").addFields({ name: "Utilisateur", value: `${interaction.user.tag} (${interaction.user.id})` }, { name: "Salon", value: `${ticket}` }, { name: "Type", value: type.toUpperCase() })]
-                });
-            }
-
-            // --- FLOW SPECIFIQUE : JOUEUR ---
             if (type === "joueur") {
-                const intro = new EmbedBuilder()
-                    .setColor("#3498db")
-                    .setTitle("🎮 Recrutement Joueur - Règlement")
-                    .setDescription("Bonjour ! Bienvenue dans ton espace de recrutement. Prends le temps de lire attentivement nos conditions d'entrée.\n\nUne fois prêt, clique sur le bouton ci-dessous pour remplir ton formulaire complet.");
-
-                const formBtn = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("joueur_form").setLabel("Remplir le formulaire").setStyle(ButtonStyle.Success).setEmoji("🧾")
+                sectionEmbed.setDescription(`Bienvenue dans ton espace de recrutement Joueur.\n\nPour soumettre tes statistiques et obtenir ton rôle de manière automatisée, merci de cliquer sur le bouton **Formulaire** ci-dessous et de remplir les informations demandées.`);
+                actionButtons.addComponents(
+                    new ButtonBuilder().setCustomId("form_joueur").setLabel("Formulaire").setStyle(ButtonStyle.Success).setEmoji("🧾")
                 );
-                await ticket.send({ embeds: [intro], components: [formBtn] });
+            } else if (type === "audiovisuel") {
+                sectionEmbed.setDescription("Bienvenue dans le pôle Audiovisuel. Veuillez utiliser le menu déroulant ci-dessous pour choisir votre spécialisation (Monteur, Graphiste, Creator, Mapper).");
             }
 
-            // --- FLOW SPECIFIQUE : STAFF ---
-            if (type === "staff") {
-                await ticket.send({
-                    embeds: [new EmbedBuilder().setColor("#e74c3c").setTitle("🛡️ Recrutement Staff").setDescription("Merci de ton intérêt ! Explique tes motivations, tes anciennes expériences et tes disponibilités directement à la suite de ce message.")]
-                });
-            }
+            await ticketChannel.send({
+                content: `<@${i.user.id}>`,
+                embeds: [sectionEmbed],
+                components: [actionButtons]
+            });
 
-            // --- FLOW SPECIFIQUE : AUDIOVISUEL ---
+            // Envoi d'un sélecteur additionnel pour le pôle audiovisuel
             if (type === "audiovisuel") {
-                const audioEmbed = new EmbedBuilder()
-                    .setColor("#9b59b6")
-                    .setTitle("🎬 Recrutement Audiovisuel")
-                    .setDescription("Bienvenue ! Afin de mieux vous aiguiller, veuillez sélectionner la spécialité qui vous correspond le mieux :");
-
                 const audioMenu = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
-                        .setCustomId("audio_select")
+                        .setCustomId("audio_specialty")
                         .setPlaceholder("Choisis ta spécialité...")
                         .addOptions([
                             { label: "Monteur", value: "monteur", emoji: "🎥" },
@@ -160,337 +140,231 @@ module.exports = async (client) => {
                             { label: "Thumbnail Maker / Mapper", value: "mapper", emoji: "🗺️" }
                         ])
                 );
-                await ticket.send({ embeds: [audioEmbed], components: [audioMenu] });
+                await ticketChannel.send({ components: [audioMenu] });
             }
 
-            return interaction.reply({ content: `✅ Ton ticket a été créé : ${ticket}`, ephemeral: true });
+            return i.reply({ content: `✅ Ticket créé avec succès : ${ticketChannel}`, ephemeral: true });
         }
 
-        // 2. APPARITION DU MODAL JOUEUR
-        if (interaction.isButton() && interaction.customId === "joueur_form") {
-            const data = ticketData.get(interaction.channel.id);
-            if (!data || data.creatorId !== interaction.user.id) {
-                return interaction.reply({ content: "❌ Seul le créateur du ticket peut remplir ce formulaire.", ephemeral: true });
+        // --- AFFICHAGE DU MODAL RECRUTEMENT JOUER ---
+        if (i.isButton() && i.customId === "form_joueur") {
+            const context = sessionContext.get(i.channel.id);
+            if (!context || context.userId !== i.user.id) {
+                return i.reply({ content: "❌ Seul l'auteur initial du ticket peut compléter ce formulaire.", ephemeral: true });
             }
 
-            const modal = new ModalBuilder().setCustomId("joueur_modal").setTitle("Recrutement Joueur");
+            const modal = new ModalBuilder().setCustomId("joueur_modal_submit").setTitle("Formulaire de Recrutement");
 
             modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("pseudo").setLabel("Pseudo Epic Games").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("epic").setLabel("Pseudo Epic Games").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("age").setLabel("Âge").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("pr").setLabel("Points PR EU").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("platform").setLabel("Plateforme (PC, PS5, Xbox...)").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Pourquoi rejoindre la structure ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("platform").setLabel("Plateforme").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Pourquoi HoveX ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
             );
 
-            return interaction.showModal(modal);
+            return i.showModal(modal);
         }
 
-        // 3. SOUMISSION DU MODAL JOUEUR & ENVOI AU STAFF POUR VALIDATION
-        if (interaction.isModalSubmit() && interaction.customId === "joueur_modal") {
-            await interaction.deferReply({ ephemeral: true });
+        // --- TRAITEMENT AUTOMATIQUE DU FORMULAIRE PR ---
+        if (i.isModalSubmit() && i.customId === "joueur_modal_submit") {
+            await i.deferReply({ ephemeral: true });
 
-            const pseudo = interaction.fields.getTextInputValue("pseudo");
-            const age = interaction.fields.getTextInputValue("age");
-            const prInput = interaction.fields.getTextInputValue("pr");
-            const pr = parseInt(prInput.replace(/\s/g, "")) || 0;
-            const platform = interaction.fields.getTextInputValue("platform");
-            const motivation = interaction.fields.getTextInputValue("motivation");
+            const epic = i.fields.getTextInputValue("epic");
+            const age = i.fields.getTextInputValue("age");
+            const prValue = parseInt(i.fields.getTextInputValue("pr").replace(/\s/g, "")) || 0;
+            const platform = i.fields.getTextInputValue("platform");
+            const motivation = i.fields.getTextInputValue("motivation");
 
-            // Détermination automatique du rôle associé au PR
-            let assignedRoleId = config.PR_ROLES[0].role;
-            for (const prRange of config.PR_ROLES) {
-                if (pr >= prRange.min && pr < prRange.max) {
-                    assignedRoleId = prRange.role;
+            // Algorithme d'attribution automatique du rôle PR
+            let finalRole = config.PR_ROLES[0].role;
+            let roleName = config.PR_ROLES[0].name;
+
+            for (const item of config.PR_ROLES) {
+                if (prValue >= item.min && prValue < item.max) {
+                    finalRole = item.role;
+                    roleName = item.name;
                     break;
                 }
             }
 
-            // Sauvegarde des informations de candidature dans la mémoire du ticket
-            const currentData = ticketData.get(interaction.channel.id) || {};
-            ticketData.set(interaction.channel.id, {
-                ...currentData,
-                candidateId: interaction.user.id,
-                epicPseudo: pseudo,
-                assignedRole: assignedRoleId,
-                step: "pending_review"
-            });
+            // Attribution du rôle sur le membre
+            await i.member.roles.add(finalRole).catch(() => {});
 
-            // Message envoyé dans le ticket du joueur
-            await interaction.channel.send({
-                embeds: [new EmbedBuilder().setColor("#f1c40f").setTitle("⏳ Candidature envoyée !").setDescription("Ta candidature est en cours de validation par le staff.\nTu recevras une notification ici et en privé dès qu'un administrateur l'aura acceptée ou refusée.")]
-            });
+            // Modification automatique du pseudo : HVX + Pseudo original
+            const currentName = i.member.displayName;
+            if (!currentName.startsWith("HVX")) {
+                await i.member.setNickname(`HVX ${currentName.substring(0, 28)}`).catch(() => {});
+            }
 
-            // Envoi dans les LOGS pour action du staff
-            const logsChan = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logsChan) {
-                const staffReviewEmbed = new EmbedBuilder()
-                    .setColor("#f39c12")
-                    .setTitle("📊 Nouvelle Candidature Joueur à Vérifier")
-                    .setDescription(`Soumise par ${interaction.user} (${interaction.user.id})\nDans le salon : ${interaction.channel}`)
+            // Changement de nom du salon
+            await i.channel.setName(`hvx-${epic}`).catch(() => {});
+
+            // Envoi du rapport dans le salon LOGS
+            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChannel) {
+                const logEmbed = new EmbedBuilder()
+                    .setColor("Green")
+                    .setTitle("📊 Rôle PR Assigné Automatiquement")
+                    .setDescription(`Le joueur ${i.user} a complété son formulaire.`)
                     .addFields(
-                        { name: "🎮 Pseudo Epic", value: pseudo, inline: true },
+                        { name: "🎮 Epic", value: epic, inline: true },
                         { name: "🎂 Âge", value: age, inline: true },
-                        { name: "🏆 Points PR", value: `${pr} PR`, inline: true },
+                        { name: "🏆 Score PR", value: `${prValue} PR`, inline: true },
                         { name: "💻 Plateforme", value: platform, inline: true },
-                        { name: "🎯 Rôle Pré-calculé", value: `<@&${assignedRoleId}>`, inline: true },
+                        { name: "🏷️ Rôle Donné", value: `<@&${finalRole}> (${roleName})` },
                         { name: "📝 Motivation", value: motivation }
                     );
-
-                const staffActionButtons = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`accept_candidate_${interaction.channel.id}`).setLabel("Accepter").setStyle(ButtonStyle.Success).setEmoji("✅"),
-                    new ButtonBuilder().setCustomId(`reject_candidate_${interaction.channel.id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger).setEmoji("❌")
-                );
-
-                await logsChan.send({ embeds: [staffReviewEmbed], components: [staffActionButtons] });
+                await logChannel.send({ embeds: [logEmbed] });
             }
 
-            return interaction.editReply({ content: "Candidature bien transmise à l'équipe d'administration !" });
+            // Lancement instantané du questionnaire de suivi dans le ticket
+            const followUpEmbed = new EmbedBuilder()
+                .setColor("Green")
+                .setTitle("✅ Rôle Attribué avec Succès !")
+                .setDescription(`Tes données ont été enregistrées avec succès. Le rôle **${roleName}** t'a été donné et ton nom a été mis à jour.\n\n**Question 1 :** As-tu besoin d'aide supplémentaire concernant ce rôle ?`);
+
+            const helpRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("follow_help_yes").setLabel("Oui").setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("follow_help_no").setLabel("Non").setStyle(ButtonStyle.Secondary)
+            );
+
+            await i.channel.send({ content: `<@${i.user.id}>`, embeds: [followUpEmbed], components: [helpRow] });
+            return i.editReply({ content: "Formulaire traité et validé !" });
         }
 
-        // 4. LOGIQUE DE VALIDATION D'UN CANDIDAT PAR LE STAFF (DEPUIS LE SALON LOGS)
-        if (interaction.isButton() && (interaction.customId.startsWith("accept_candidate_") || interaction.customId.startsWith("reject_candidate_"))) {
-            const isAccept = interaction.customId.startsWith("accept_candidate_");
-            const targetChannelId = interaction.customId.split("_").pop();
-            const targetChannel = await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
-
-            // Vérification des droits staff
-            const requiredRoles = config.ROLES.joueur;
-            const hasRole = interaction.member.roles.cache.some(r => requiredRoles.includes(r.id));
-            if (!hasRole && !interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
-                return interaction.reply({ content: "❌ Tu n'as pas le rôle requis pour valider cette candidature.", ephemeral: true });
+        // --- QUESTIONNAIRES DE SUIVI JOUEUR ---
+        if (i.isButton() && ["follow_help_yes", "follow_help_no", "follow_struct_yes", "follow_struct_no"].includes(i.customId)) {
+            const context = sessionContext.get(i.channel.id);
+            if (!context || i.user.id !== context.userId) {
+                return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
             }
 
-            const data = ticketData.get(targetChannelId);
-            if (!data) return interaction.reply({ content: "❌ Impossible de retrouver les données associées à cette candidature.", ephemeral: true });
+            await i.deferUpdate();
 
-            const candidateMember = await interaction.guild.members.fetch(data.candidateId).catch(() => null);
-
-            if (isAccept) {
-                // Attribution du rôle de PR
-                if (candidateMember && data.assignedRole) {
-                    await candidateMember.roles.add(data.assignedRole).catch(() => null);
-                    // Changement de pseudo : "HVX " + son pseudo original
-                    const currentNickname = candidateMember.displayName;
-                    if (!currentNickname.startsWith("HVX")) {
-                        await candidateMember.setNickname(`HVX ${currentNickname.substring(0, 28)}`).catch(() => null);
-                    }
-                }
-
-                // Notification en DM du joueur
-                if (candidateMember) {
-                    await candidateMember.send({
-                        embeds: [new EmbedBuilder().setColor("Green").setTitle("🎉 Félicitations !").setDescription(`Ta candidature au sein de la structure HoveX a été **Acceptée** !\nLe rôle <@&${data.assignedRole}> t'a été attribué.`)]
-                    }).catch(() => null);
-                }
-
-                // Suite dans son salon ticket : Phase des questions de suivi
-                if (targetChannel) {
-                    ticketData.set(targetChannelId, { ...data, step: "questionnaire_1" });
-                    
-                    const followUpEmbed = new EmbedBuilder()
-                        .setColor("Green")
-                        .setTitle("✅ Candidature Validée !")
-                        .setDescription(`Félicitations <@${data.candidateId}>, tu as été retenu. Ton rôle a été assigné.\n\n**Question :** As-tu besoin d'aide supplémentaire concernant ce rôle ?`);
-
-                    const helpButtons = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("help_yes").setLabel("Oui").setStyle(ButtonStyle.Primary),
-                        new ButtonBuilder().setCustomId("help_no").setLabel("Non").setStyle(ButtonStyle.Secondary)
-                    );
-
-                    await targetChannel.send({ content: `<@${data.candidateId}>`, embeds: [followUpEmbed], components: [helpButtons] });
-                }
-
-                await interaction.reply({ content: `✅ Candidature de <@${data.candidateId}> acceptée avec succès !`, ephemeral: true });
-            } else {
-                // Traitement d'un Refus
-                if (candidateMember) {
-                    await candidateMember.send({
-                        embeds: [new EmbedBuilder().setColor("Red").setTitle("❌ Candidature Refusée").setDescription("Malheureusement, ton profil ne correspond pas à nos critères actuels pour intégrer la structure.")]
-                    }).catch(() => null);
-                }
-
-                if (targetChannel) {
-                    await targetChannel.send({ content: "❌ Ta candidature a été refusée par l'équipe de gestion. Ce ticket va être clôturé." });
-                    setTimeout(() => targetChannel.delete().catch(() => {}), 5000);
-                }
-
-                await interaction.reply({ content: `❌ Candidature de <@${data.candidateId}> refusée.`, ephemeral: true });
-            }
-
-            // Désactivation des boutons du message de log d'origine
-            await interaction.message.edit({ components: [] }).catch(() => null);
-        }
-
-        // 5. ENCHAÎNEMENT DU QUESTIONNAIRE DE SUIVI DANS LE TICKET JOUEUR
-        if (interaction.isButton() && ["help_yes", "help_no", "struct_yes", "struct_no"].includes(interaction.customId)) {
-            const data = ticketData.get(interaction.channel.id);
-            if (!data || interaction.user.id !== data.candidateId) {
-                return interaction.reply({ content: "❌ Seul le candidat concerné peut répondre.", ephemeral: true });
-            }
-
-            await interaction.deferUpdate();
-
-            // Étape 1 : Aide sur le rôle ?
-            if (interaction.customId === "help_yes" || interaction.customId === "help_no") {
-                const nextEmbed = new EmbedBuilder()
+            if (i.customId === "follow_help_yes" || i.customId === "follow_help_no") {
+                const step2Embed = new EmbedBuilder()
                     .setColor("#34495e")
-                    .setTitle("❓ Deuxième question")
-                    .setDescription("As-tu des questions spécifiques concernant notre structure (HoveX) ?");
+                    .setTitle("❓ Question Suivante")
+                    .setDescription("As-tu des questions particulières à poser concernant le fonctionnement de notre structure (HoveX) ?");
 
-                const structButtons = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("struct_yes").setLabel("Oui").setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder().setCustomId("struct_no").setLabel("Non").setStyle(ButtonStyle.Secondary)
+                const structRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("follow_struct_yes").setLabel("Oui").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId("follow_struct_no").setLabel("Non").setStyle(ButtonStyle.Secondary)
                 );
-
-                await interaction.channel.send({ embeds: [nextEmbed], components: [structButtons] });
+                await i.channel.send({ embeds: [step2Embed], components: [structRow] });
             }
 
-            // Étape 2 : Des questions sur la structure ?
-            if (interaction.customId === "struct_no") {
-                // Pas de question -> Fermeture / Suppression immédiate
-                await interaction.channel.send({ content: "🏁 Pas d'autres questions. Merci à toi ! Clôture du ticket..." });
-                
-                // Archivage textuel
-                await archiveTicketChannel(interaction.channel, client);
-                
+            if (i.customId === "follow_struct_no") {
+                await i.channel.send({ content: "🏁 Parfait, aucune question restante. Clôture et archivage automatique du ticket..." });
+                await createTextArchive(i.channel, client);
                 setTimeout(() => {
-                    cooldown.delete(data.candidateId);
-                    interaction.channel.delete().catch(() => {});
+                    ticketCooldown.delete(context.userId);
+                    i.channel.delete().catch(() => {});
                 }, 4000);
             }
 
-            if (interaction.customId === "struct_yes") {
-                // Sélection du nombre de questions
+            if (i.customId === "follow_struct_yes") {
                 const countEmbed = new EmbedBuilder()
                     .setColor("#2ecc71")
-                    .setTitle("💬 Combien de questions as-tu à nous poser ?")
-                    .setDescription("Sélectionne le nombre ci-dessous pour ouvrir le fil de discussion :");
+                    .setTitle("💬 Nombre de questions")
+                    .setDescription("Combien de questions souhaites-tu soumettre à l'équipe ?");
 
                 const menuCount = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
-                        .setCustomId("question_count_select")
-                        .setPlaceholder("Nombre de questions...")
+                        .setCustomId("user_questions_count")
+                        .setPlaceholder("Choisis le nombre...")
                         .addOptions([
                             { label: "1 Question", value: "1" },
                             { label: "2 Questions", value: "2" },
                             { label: "3 Questions ou plus", value: "3" }
                         ])
                 );
-                await interaction.channel.send({ embeds: [countEmbed], components: [menuCount] });
+                await i.channel.send({ embeds: [countEmbed], components: [menuCount] });
             }
         }
 
-        // Étape 3 : Traitement du choix du nombre de questions
-        if (interaction.isStringSelectMenu() && interaction.customId === "question_count_select") {
-            const data = ticketData.get(interaction.channel.id);
-            if (!data || interaction.user.id !== data.candidateId) {
-                return interaction.reply({ content: "❌ Non autorisé.", ephemeral: true });
-            }
+        if (i.isStringSelectMenu() && i.customId === "user_questions_count") {
+            const context = sessionContext.get(i.channel.id);
+            if (!context || i.user.id !== context.userId) return;
 
-            const nbr = interaction.values[0];
-            await interaction.reply({ content: `✍️ Tu as choisi de poser **${nbr}** question(s). Écris-la/les ci-dessous. Un staff va se charger de te répondre.`, ephemeral: false });
+            const total = i.values[0];
+            await i.reply({ content: `✍️ Tu as indiqué avoir **${total}** question(s). Pose-les directement à l'écrit ici. Le staff va prendre le relais.` });
 
-            // Alerte dans les logs pour prévenir qu'une question attend le staff
-            const logsChan = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logsChan) {
-                logsChan.send({
-                    embeds: [new EmbedBuilder().setColor("Orange").setTitle("❓ Question en attente").setDescription(`Le joueur ${interaction.user} attend un staff dans son ticket ${interaction.channel} pour répondre à ses questions.`)]
+            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChannel) {
+                logChannel.send({
+                    embeds: [new EmbedBuilder().setColor("Orange").setTitle("❓ Question en attente").setDescription(`Le joueur ${i.user} a fini son questionnaire et attend une réponse dans le salon ${i.channel}.`)]
                 });
             }
         }
 
-        // 6. FILTRAGE SELECT AUDIOVISUEL
-        if (interaction.isStringSelectMenu() && interaction.customId === "audio_select") {
-            const choice = interaction.values[0];
-            await interaction.reply({ content: `🎨 Tu as sélectionné la spécialité : **${choice.toUpperCase()}**. Un responsable va te prendre en charge pour analyser tes travaux / portfolio.`, ephemeral: false });
+        // --- INTERACTION AUDIOVISUEL ---
+        if (i.isStringSelectMenu() && i.customId === "audio_specialty") {
+            await i.reply({ content: `🎬 Spécialité enregistrée : **${i.values[0].toUpperCase()}**. Un gestionnaire média arrive pour analyser ton portfolio.` });
         }
 
         // =====================================================
-        // CONTROLES GENERAUX DES SYSTEMES (CLAIM, CLOSE, DELETE)
+        // ACTIONS ET SÉCURITÉS STAFF (CLAIM, CLOSE, DELETE)
         // =====================================================
+        if (i.isButton() && ["claim", "close", "delete"].includes(i.customId)) {
+            const context = sessionContext.get(i.channel.id);
+            const currentType = context ? context.type : "autre";
+            const allowedStaffRoles = config.ROLES[currentType] || [];
 
-        // 🛡️ ACCÈS CLAIM 
-        if (interaction.isButton() && interaction.customId === "claim") {
-            const data = ticketData.get(interaction.channel.id);
-            const ticketType = data ? data.type : "autre";
-            const allowedRoles = config.ROLES[ticketType] || [];
+            const hasAccess = i.member.roles.cache.some(r => allowedStaffRoles.includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
+            if (!hasAccess) return i.reply({ content: "❌ Droits d'accès insuffisants (Réservé au staff autorisé).", ephemeral: true });
 
-            const isStaff = interaction.member.roles.cache.some(r => allowedRoles.includes(r.id)) || interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-
-            if (!isStaff) return interaction.reply({ content: "❌ Seuls les membres du staff assignés à cette catégorie peuvent claim.", ephemeral: true });
-
-            return interaction.reply({ content: `📌 Ce ticket est désormais pris en charge par ${interaction.user}.` });
-        }
-
-        // 🔒 ACCÈS CLOSE (Retire la visibilité au membre d'origine)
-        if (interaction.isButton() && interaction.customId === "close") {
-            const data = ticketData.get(interaction.channel.id);
-            const ticketType = data ? data.type : "autre";
-            const allowedRoles = config.ROLES[ticketType] || [];
-
-            const isStaff = interaction.member.roles.cache.some(r => allowedRoles.includes(r.id)) || interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-
-            if (!isStaff) return interaction.reply({ content: "❌ Droits staff insuffisants pour exécuter cette commande.", ephemeral: true });
-
-            if (data && data.creatorId) {
-                await interaction.channel.permissionOverwrites.edit(data.creatorId, { ViewChannel: false }).catch(() => null);
+            if (i.customId === "claim") {
+                return i.reply({ content: `📌 Ce ticket est maintenant géré par ${i.user}.` });
             }
-            return interaction.reply({ content: "🔒 Le ticket a été masqué pour l'utilisateur. Seul le staff y a encore accès." });
-        }
 
-        // 🗑️ ACCÈS SUPPRESSION UNIQUE AVEC EXCLUSIVITÉ ARCHIVAGE
-        if (interaction.isButton() && interaction.customId === "delete") {
-            const data = ticketData.get(interaction.channel.id);
-            const ticketType = data ? data.type : "autre";
-            const allowedRoles = config.ROLES[ticketType] || [];
+            if (i.customId === "close") {
+                if (context && context.userId) {
+                    await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: false }).catch(() => null);
+                }
+                return i.reply({ content: "🔒 Le ticket a été fermé et masqué à l'utilisateur." });
+            }
 
-            const isStaff = interaction.member.roles.cache.some(r => allowedRoles.includes(r.id)) || interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-
-            if (!isStaff) return interaction.reply({ content: "❌ Droits staff insuffisants.", ephemeral: true });
-
-            await interaction.reply({ content: "🗑️ Archivage et suppression imminente..." });
-
-            // Exécution de l'archivage avant destruction physique du salon
-            await archiveTicketChannel(interaction.channel, client);
-
-            setTimeout(() => {
-                if (data && data.creatorId) cooldown.delete(data.creatorId);
-                interaction.channel.delete().catch(() => {});
-            }, 3000);
+            if (i.customId === "delete") {
+                await i.reply({ content: "🗑️ Génération de l'archive textuelle et suppression définitive..." });
+                await createTextArchive(i.channel, client);
+                setTimeout(() => {
+                    if (context && context.userId) ticketCooldown.delete(context.userId);
+                    i.channel.delete().catch(() => {});
+                }, 3000);
+            }
         }
     });
 };
 
 // =====================================================
-// FONCTION COMPLÈTE D'ARCHIVAGE TEXTUELLE AUTO-SUPPRIMABLE
+// FONCTION D'ARCHIVAGE AUTOMATIQUE (DURÉE 1 HEURE)
 // =====================================================
-async function archiveTicketChannel(channel, client) {
+async function createTextArchive(channel, client) {
     try {
-        const messages = await channel.messages.fetch({ limit: 100 });
-        let txtOutput = `--- ARCHIVE LOGS DU TICKET : ${channel.name} ---\n\n`;
+        const fetchedMessages = await channel.messages.fetch({ limit: 100 });
+        let logFormat = `--- LOGS DU SALON SUPPORT : ${channel.name} ---\n\n`;
 
-        const sortedMessages = messages.reverse();
-        sortedMessages.forEach(msg => {
-            txtOutput += `[${msg.createdAt.toLocaleString()}] ${msg.author.tag}: ${msg.content}\n`;
+        const chronological = fetchedMessages.reverse();
+        chronological.forEach(msg => {
+            logFormat += `[${msg.createdAt.toLocaleString()}] ${msg.author.tag}: ${msg.content}\n`;
         });
 
-        const archiveChan = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
-        if (archiveChan) {
-            const buffer = Buffer.from(txtOutput, "utf-8");
-            
-            // Envoi du fichier texte brut
-            const archiveMsg = await archiveChan.send({
-                content: `📁 Archive complète du ticket \`${channel.name}\` exécutée. Ce fichier texte s'autodétruira dans 1 heure.`,
-                files: [{ attachment: buffer, name: `archive-${channel.name}.txt` }]
+        const destinationLog = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
+        if (destinationLog) {
+            const textBuffer = Buffer.from(logFormat, "utf-8");
+            const archivePost = await destinationLog.send({
+                content: `📁 Archive générée pour le ticket \`${channel.name}\`. (Ce fichier s'effacera automatiquement dans 1 heure)`,
+                files: [{ attachment: textBuffer, name: `log-${channel.name}.txt` }]
             });
 
-            // Auto-suppression programmée au bout d'une heure (3600000 ms)
+            // Supprime l'archive au bout de 60 minutes exactement
             setTimeout(() => {
-                archiveMsg.delete().catch(() => {});
+                archivePost.delete().catch(() => {});
             }, 3600000);
         }
-    } catch (err) {
-        console.error("Erreur lors de la génération de l'archive :", err);
+    } catch (error) {
+        console.error("[ARCHIVE] Erreur lors de la compilation du fichier :", error);
     }
 }
