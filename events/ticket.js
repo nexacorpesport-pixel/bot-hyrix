@@ -23,14 +23,13 @@ const sessionContext = new Map();
 
 module.exports = async (client) => {
 
-    console.log("[TICKET] Initialisation du système complet HoveX (Tout-en-un)...");
+    console.log("[TICKET] Initialisation du système Premium HoveX (Tout-en-un)...");
 
     // =====================================================
     // 1. DÉPLOIEMENT DU PANEL PRINCIPAL
     // =====================================================
     const panelChannel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
     if (panelChannel) {
-        // Nettoyage des anciens messages du bot pour éviter les doublons au redémarrage
         const cachedMessages = await panelChannel.messages.fetch({ limit: 10 }).catch(() => null);
         if (cachedMessages) {
             const botMessages = cachedMessages.filter(m => m.author.id === client.user.id);
@@ -67,7 +66,6 @@ module.exports = async (client) => {
     client.on("messageCreate", async (message) => {
         if (message.author.bot || !message.guild) return;
 
-        // Commande textuelle : +test modérateur @membre
         if (message.content.startsWith("+test modérateur")) {
             const allowedRoles = config.ROLES.staff;
             const isStaff = message.member.roles.cache.some(r => allowedRoles.includes(r.id)) || message.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
@@ -77,10 +75,8 @@ module.exports = async (client) => {
             const targetUser = message.mentions.members.first();
             if (!targetUser) return message.reply("❌ Tu devez mentionner un membre. Exemple : `+test modérateur @Pseudo`_");
 
-            // Attribution automatique du rôle Test Modérateur configuré
             await targetUser.roles.add(config.TEST_MODO_ROLE).catch(() => {});
 
-            // Ouverture des accès au salon actuel pour le modérateur en test
             await message.channel.permissionOverwrites.edit(targetUser.id, {
                 ViewChannel: true,
                 SendMessages: true,
@@ -135,7 +131,7 @@ Bonne chance à toi !`);
                 permissionOverwrites: basePermissions
             });
 
-            sessionContext.set(ticketChannel.id, { userId: i.user.id, type: type });
+            sessionContext.set(ticketChannel.id, { userId: i.user.id, type: type, createdAt: Date.now() });
 
             const actionButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary).setEmoji("📌"),
@@ -262,7 +258,7 @@ Bonne chance à toi !`);
             return i.editReply({ content: "Candidature Staff envoyée !" });
         }
 
-        // --- D. MODULE AUDIOVISUEL (FORMULAIRES PAR SPÉCIALITÉ ET AUTO-ROLE) ---
+        // --- D. MODULE AUDIOVISUEL ---
         if (i.isStringSelectMenu() && i.customId === "audio_form_select") {
             const context = sessionContext.get(i.channel.id);
             if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
@@ -287,7 +283,6 @@ Bonne chance à toi !`);
             const xp = i.fields.getTextInputValue("xp");
             const motivation = i.fields.getTextInputValue("motivation");
 
-            // Rôle attribué directement selon la configuration
             const autoRole = config.AUDIO_ROLES[specialty];
             if (autoRole) await i.member.roles.add(autoRole).catch(() => {});
 
@@ -313,8 +308,7 @@ Bonne chance à toi !`);
             }
             if (i.customId === "follow_struct_no") {
                 await i.channel.send({ content: "🏁 Parfait, aucune question restante. Clôture automatique du ticket..." });
-                await createTextArchive(i.channel, client);
-                setTimeout(() => { ticketCooldown.delete(context.userId); i.channel.delete().catch(() => {}); }, 4000);
+                await generateSystemClose(i.channel, client, context);
             }
             if (i.customId === "follow_struct_yes") {
                 const menuCount = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("user_questions_count").setPlaceholder("Choisis le nombre...").addOptions([{ label: "1 Question", value: "1" }, { label: "2 Questions", value: "2" }, { label: "3 Questions ou plus", value: "3" }]));
@@ -329,37 +323,197 @@ Bonne chance à toi !`);
             if (logChannel) logChannel.send({ embeds: [new EmbedBuilder().setColor("Orange").setTitle("❓ Question en attente").setDescription(`Le joueur ${i.user} attend une réponse dans ${i.channel}.`)] });
         }
 
-        // --- F. COMMANDES STANDARDS DU STAFF DANS LES TICKETS ---
-        if (i.isButton() && ["claim", "close", "delete"].includes(i.customId)) {
+        // --- F. COMMANDES PREMIUM STAFF (CLAIM DYNAMIQUE, CLOSE REQUEST, DELETE, STARS RATING) ---
+        if (i.isButton() && ["claim", "close", "delete", "force_close_confirm", "cancel_close"].includes(i.customId)) {
             const context = sessionContext.get(i.channel.id);
             const hasAccess = i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-            if (!hasAccess) return i.reply({ content: "❌ Réservé au staff.", ephemeral: true });
+            if (!hasAccess && !["cancel_close"].includes(i.customId)) return i.reply({ content: "❌ Réservé au staff.", ephemeral: true });
 
-            if (i.customId === "claim") return i.reply({ content: `📌 Ticket pris en charge par ${i.user}.` });
-            if (i.customId === "close") { if (context) await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: false }).catch(() => null); return i.reply({ content: "🔒 Ticket fermé pour l'utilisateur." }); }
-            if (i.customId === "delete") {
-                await i.reply({ content: "🗑️ Archivage et suppression définitive du salon..." });
-                await createTextArchive(i.channel, client);
-                setTimeout(() => { if (context) ticketCooldown.delete(context.userId); i.channel.delete().catch(() => {}); }, 3000);
+            // 1. CLAIM DYNAMIQUE (Désactive le bouton et renomme)
+            if (i.customId === "claim") {
+                await i.deferUpdate();
+                await i.channel.setName(`🔒-${i.channel.name}`).catch(() => {});
+                
+                const originalEmbed = i.message.embeds[0];
+                const updatedRow = ActionRowBuilder.from(i.message.components[0]);
+                
+                updatedRow.components[0] = new ButtonBuilder()
+                    .setCustomId("claimed_disabled")
+                    .setLabel(`Pris par ${i.member.displayName}`)
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji("✅")
+                    .setDisabled(true);
+
+                return i.message.edit({ embeds: [originalEmbed], components: [updatedRow] });
+            }
+
+            // 2. CLOSE REQUEST (Système à double choix)
+            if (i.customId === "close") {
+                if (context) await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: false }).catch(() => null);
+                
+                const closeConfirmEmbed = new EmbedBuilder()
+                    .setColor("#f1c40f")
+                    .setTitle("🔒 Demande de Clôture Intermédiaire")
+                    .setDescription("L'utilisateur ne voit plus ce salon. Souhaitez-vous archiver et purger définitivement ce ticket ?");
+                
+                const closeConfirmRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Confirmer la suppression").setStyle(ButtonStyle.Danger).setEmoji("🗑️"),
+                    new ButtonBuilder().setCustomId("cancel_close").setLabel("Réouvrir les accès").setStyle(ButtonStyle.Secondary).setEmoji("🔓")
+                );
+
+                return i.reply({ embeds: [closeConfirmEmbed], components: [closeConfirmRow] });
+            }
+
+            // 3. ANNULATION DE CLOSE (Réouverture des accès)
+            if (i.customId === "cancel_close") {
+                if (context) await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: true, SendMessages: true }).catch(() => null);
+                await i.message.delete().catch(() => {});
+                return i.reply({ content: "🔓 Le ticket a été réouvert avec succès." });
+            }
+
+            // 4. SUPPRESSION / ARCHIVAGE VIA FORCE CONFIRM OU BUTTON DELETE
+            if (i.customId === "delete" || i.customId === "force_close_confirm") {
+                await i.reply({ content: "⏳ Compilation des données, envoi du questionnaire de satisfaction et archivage..." });
+                await generateSystemClose(i.channel, client, context);
+            }
+        }
+
+        // --- G. RECEPTION DE LA NOTE DE SATISFACTION ---
+        if (i.isButton() && i.customId.startsWith("rate_stars_")) {
+            const ratingValue = i.customId.split("_").pop();
+            await i.reply({ content: `⭐ Merci d'avoir attribué une note de **${ratingValue}/5** à notre équipe ! Votre avis nous aide à grandir.`, ephemeral: true });
+            await i.message.delete().catch(() => {});
+
+            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChannel) {
+                const rateEmbed = new EmbedBuilder()
+                    .setColor("Gold")
+                    .setTitle("⭐ Évaluation Support Reçue")
+                    .setDescription(`L'utilisateur **${i.user.tag}** a évalué la qualité de sa prise en charge.\n\n**Note globale :** ${"⭐".repeat(parseInt(ratingValue))} (${ratingValue}/5)`);
+                await logChannel.send({ embeds: [rateEmbed] });
             }
         }
     });
 };
 
 // =====================================================
-// 4. SYSTÈME DE COMPILATION DES ARCHIVES TEXTUELLES (1H)
+// MODULE DE DESTRUCTION PROPRE ET PROCESS DES AMÉLIORATIONS
 // =====================================================
-async function createTextArchive(channel, client) {
+async function generateSystemClose(channel, client, context) {
+    // Calcul des statistiques globales du ticket
+    const timeOpen = context ? ((Date.now() - context.createdAt) / 60000).toFixed(1) : "Inconnu";
+    const fetchedMessages = await channel.messages.fetch({ limit: 100 });
+    const totalMsgCount = fetchedMessages.size;
+
+    // Envoi du questionnaire de notation en MP à l'utilisateur avant le delete
+    if (context) {
+        const targetUserInstance = await client.users.fetch(context.userId).catch(() => null);
+        if (targetUserInstance) {
+            const starsEmbed = new EmbedBuilder()
+                .setColor("#ffb347")
+                .setTitle("⭐ Votre avis compte pour HoveX !")
+                .setDescription("Votre ticket vient d'être clôturé par notre équipe. Prenez 2 secondes pour évaluer la qualité du support reçu :");
+
+            const starsRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("rate_stars_1").setLabel("1 ⭐").setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId("rate_stars_2").setLabel("2 ⭐").setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId("rate_stars_3").setLabel("3 ⭐").setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId("rate_stars_4").setLabel("4 ⭐").setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId("rate_stars_5").setLabel("5 ⭐").setStyle(ButtonStyle.Primary)
+            );
+            await targetUserInstance.send({ embeds: [starsEmbed], components: [starsRow] }).catch(() => {});
+        }
+    }
+
+    // Lancement du transcript HTML Avancé
+    await buildPremiumHtmlArchive(channel, client, timeOpen, totalMsgCount);
+
+    // Nettoyage en mémoire et suppression du salon physique
+    setTimeout(() => {
+        if (context) ticketCooldown.delete(context.userId);
+        channel.delete().catch(() => {});
+    }, 2500);
+}
+
+// =====================================================
+// SYSTÈME PREMIUM DE TRANSCRIPTS HTML EMBEDDED
+// =====================================================
+async function buildPremiumHtmlArchive(channel, client, minutes, messageCount) {
     try {
-        const fetchedMessages = await channel.messages.fetch({ limit: 100 });
-        let logFormat = `--- LOGS DU SALON SUPPORT : ${channel.name} ---\n\n`;
-        fetchedMessages.reverse().forEach(msg => { logFormat += `[${msg.createdAt.toLocaleString()}] ${msg.author.tag}: ${msg.content}\n`; });
+        const rawMessages = await channel.messages.fetch({ limit: 100 });
+        const sortedArray = Array.from(rawMessages.values()).reverse();
+
+        // Template HTML ultra-pro imitant Discord à la perfection
+        let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title>Transcript HoveX - ${channel.name}</title>
+            <style>
+                body { background-color: #36393f; color: #dcddde; font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; }
+                .header-box { border-bottom: 2px solid #4f545c; padding-bottom: 15px; margin-bottom: 20px; }
+                .title-main { color: #ffffff; font-size: 24px; font-weight: bold; }
+                .stat-line { color: #b9bbbe; font-size: 14px; margin-top: 5px; }
+                .chat-container { display: flex; flex-direction: column; gap: 16px; }
+                .msg-row { display: flex; gap: 16px; }
+                .avatar-img { width: 40px; height: 40px; border-radius: 50%; background-color: #4f545c; }
+                .msg-body { display: flex; flex-direction: column; gap: 4px; }
+                .author-meta { display: flex; align-items: center; gap: 8px; }
+                .author-name { color: #ffffff; font-size: 16px; font-weight: 500; }
+                .msg-time { color: #72767d; font-size: 12px; }
+                .content-text { color: #dcddde; font-size: 15px; white-space: pre-wrap; word-break: break-word; }
+                .embed-box { background: #2f3136; border-left: 4px solid #ffb347; border-radius: 4px; padding: 12px; margin-top: 6px; max-width: 520px; }
+                .embed-title { color: #ffffff; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+                .embed-desc { color: #dcddde; font-size: 14px; }
+            </style>
+        </head>
+        <body>
+            <div class="header-box">
+                <div class="title-main">📊 Archive Salon : ${channel.name}</div>
+                <div class="stat-line">Durée de vie : ${minutes} minutes | Total messages : ${messageCount}</div>
+            </div>
+            <div class="chat-container">
+        `;
+
+        sortedArray.forEach(m => {
+            if (m.author.bot && m.embeds.length === 0 && !m.content) return;
+
+            htmlContent += `
+            <div class="msg-row">
+                <img class="avatar-img" src="${m.author.displayAvatarURL({ extension: 'png', size: 64 })}" alt="avatar" onerror="this.src='https://discord.com/assets/6debd47ed1348347a973.svg'">
+                <div class="msg-body">
+                    <div class="author-meta">
+                        <span class="author-name">${m.author.tag}</span>
+                        <span class="msg-time">${m.createdAt.toLocaleString()}</span>
+                    </div>
+                    ${m.content ? `<div class="content-text">${m.content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+            `;
+
+            m.embeds.forEach(emb => {
+                htmlContent += `
+                <div class="embed-box" style="border-left-color: ${emb.hexColor || '#ffb347'}">
+                    ${emb.title ? `<div class="embed-title">${emb.title}</div>` : ""}
+                    ${emb.description ? `<div class="embed-desc">${emb.description.replace(/\n/g, "<br>")}</div>` : ""}
+                </div>
+                `;
+            });
+
+            htmlContent += `</div></div>`;
+        });
+
+        htmlContent += `</div></body></html>`;
 
         const destinationLog = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
         if (destinationLog) {
-            const textBuffer = Buffer.from(logFormat, "utf-8");
-            const archivePost = await destinationLog.send({ content: `📁 Archive pour \`${channel.name}\`. (Auto-suppression dans 1 heure)`, files: [{ attachment: textBuffer, name: `log-${channel.name}.txt` }] });
+            const textBuffer = Buffer.from(htmlContent, "utf-8");
+            const archivePost = await destinationLog.send({ 
+                content: `📁 **Nouvelle archive HTML générée** pour \`${channel.name}\`.\n⏱️ *Durée :* \`${minutes} min\` | 💬 *Volume :* \`${messageCount} messages\`. (Auto-suppression dans 1 heure)`, 
+                files: [{ attachment: textBuffer, name: `transcript-${channel.name}.html` }] 
+            });
             setTimeout(() => { archivePost.delete().catch(() => {}); }, 3600000);
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error("[ARCHIVE ERROR]", e); 
+    }
 }
