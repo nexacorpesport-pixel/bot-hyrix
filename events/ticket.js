@@ -19,7 +19,7 @@ const config = require("../data/ticketConfig");
 const LOGS_CHANNEL = "1508157026491175002";
 const ARCHIVE_CHANNEL = "1510019228047114300";
 
-// Base de données locale ultra-légère et persistante (Anti-Crash/Reboot)
+// Base de données locale ultra-légère et portant (Anti-Crash/Reboot)
 const DB_PATH = path.join(__dirname, "../data/ticket_database.json");
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify({ tickets: {}, blacklist: [], stats: {} }, null, 4));
@@ -138,7 +138,7 @@ module.exports = async (client) => {
         if (i.isButton() || i.isStringSelectMenu()) {
             const cooldownKey = `${i.user.id}-${i.customId}`;
             if (globalCooldowns.has(cooldownKey)) {
-                return i.reply({ content: "⏳ Ralentis ! Tu cliques trop vite sur les composants.", ephemeral: true });
+                return i.reply({ content: "⏳ Ralentis ! Tu cliques trop vite.", ephemeral: true });
             }
             globalCooldowns.add(cooldownKey);
             setTimeout(() => globalCooldowns.delete(cooldownKey), 2000);
@@ -151,12 +151,12 @@ module.exports = async (client) => {
 
             // Vérification Blacklist
             if (db.blacklist.includes(i.user.id)) {
-                return i.reply({ content: "❌ Vous possédez une interdiction active vous empêchant d'ouvrir un ticket sur HoveX.", ephemeral: true });
+                return i.reply({ content: "❌ Vous possédez une interdiction active vous empêchant d'ouvrir un ticket.", ephemeral: true });
             }
 
             // Vérification doublon persistant
             const hasActiveTicket = Object.values(db.tickets).some(t => t.userId === i.user.id && t.status === "open");
-            if (hasActiveTicket) return i.reply({ content: "⏳ Vous possédez déjà un ticket ouvert au sein de la structure.", ephemeral: true });
+            if (hasActiveTicket) return i.reply({ content: "⏳ Vous possédez déjà un ticket ouvert.", ephemeral: true });
 
             const categoryId = config.CATEGORIES[type];
             const basePermissions = [
@@ -188,7 +188,7 @@ module.exports = async (client) => {
             };
             writeDB(db);
 
-            // Génération des boutons principaux + Boutons Utilitaires (Add/Remove & Vocal)
+            // Génération des boutons principaux + Boutons Utilitaires
             const actionButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary).setEmoji("📌"),
                 new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Secondary).setEmoji("🔒"),
@@ -203,7 +203,6 @@ module.exports = async (client) => {
 
             let mainEmbed = new EmbedBuilder().setColor("#ffb347").setTitle(`🎫 Ticket ${type.toUpperCase()} Ouvert`);
 
-            // Embed Historique / Casier Modération instantané pour le Staff
             const infoEmbed = new EmbedBuilder()
                 .setColor("#2f3136")
                 .setDescription(`👤 **Demandeur :** ${i.user} (${i.user.id})\n📂 **Historique structure :** Aucune sanction active enregistrée.`);
@@ -422,12 +421,14 @@ module.exports = async (client) => {
             return i.editReply({ content: "Permissions mises à jour !" });
         }
 
-        // --- G. COMMANDES PREMIUM STAFF (CLAIM DYNAMIQUE, CLOSE REQUEST, DELETE, STARS RATING) ---
-        // CORRECTION DE SÉCURITÉ ICI : Restriction exclusive aux identifiants exacts du Staff pour éviter les interceptions sur form_joueur
+        // --- G. COMMANDES SÉCURISÉES STAFF (CLAIM, CLOSE, DELETE) ---
         if (i.isButton() && ["claim", "close", "delete", "force_close_confirm", "cancel_close"].includes(i.customId)) {
             const db = readDB(); const context = db.tickets[i.channel.id];
             const hasAccess = i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-            if (!hasAccess && !["cancel_close"].includes(i.customId)) return i.reply({ content: "❌ Action non autorisée. Vous ne possédez pas les codes d'accès requis pour ce panneau de crise.", ephemeral: true });
+            
+            if (!hasAccess && !["cancel_close"].includes(i.customId)) {
+                return i.reply({ content: "❌ Action réservée au Staff autorisé.", ephemeral: true });
+            }
 
             if (i.customId === "claim") {
                 await i.deferUpdate();
@@ -460,7 +461,7 @@ module.exports = async (client) => {
             }
         }
 
-        // --- H. RECEPTION ET LEADERBOARD DES NOTES DE SATISFACTION ---
+        // --- H. RECEPTION DES NOTES ⭐ ---
         if (i.isButton() && i.customId.startsWith("rate_stars_")) {
             const ratingValue = parseInt(i.customId.split("_").pop());
             await i.reply({ content: `⭐ Merci pour ta note de **${ratingValue}/5** !`, ephemeral: true });
@@ -483,7 +484,6 @@ module.exports = async (client) => {
     });
 };
 
-// Fonction de fermeture et d'archivage manquante dans votre ancien code
 async function generateSystemClose(channel, client, context) {
     try {
         const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
