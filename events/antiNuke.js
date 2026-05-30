@@ -174,7 +174,6 @@ module.exports = (client) => {
         if (!BUNKER_MODE) return;
         if (newMember.id === WHITELIST_CEO_ID) return;
 
-        // Si l'utilisateur change son pseudo sur le serveur pour tricher ou s'infiltrer
         if (oldMember.nickname !== newMember.nickname) {
             await newMember.setNickname(oldMember.nickname, "Sécurité Bunker : Interdiction de modifier son identité pendant le raid").catch(() => {});
         }
@@ -192,13 +191,11 @@ module.exports = (client) => {
 
         const executor = entry.executor;
 
-        // 🔥 PROTECTION SANS FAILLE DE LA CATÉGORIE BUNKER
         if (BUNKER_MODE && (channel.id === BUNKER_CATEGORY_ID || channel.parentId === BUNKER_CATEGORY_ID)) {
             const staffMember = await guild.members.fetch(executor.id).catch(() => null);
             if (staffMember) {
                 await isolateStaff(guild, staffMember, "Tentative critique de destruction de la zone Bunkerisée");
                 
-                // Reconstruction instantanée à la volée informatique
                 await guild.channels.create({
                     name: channel.name,
                     type: channel.type,
@@ -449,7 +446,7 @@ module.exports = (client) => {
     });
 
     client.on("guildAuditLogEntryCreate", async (auditLogEntry, guild) => {
-        if (auditLogEntry.actionType !== 24) return; // 24 = MEMBER_KICK
+        if (auditLogEntry.actionType !== 24) return; 
         const executorId = auditLogEntry.executorId;
         if (executorId === WHITELIST_CEO_ID) return;
 
@@ -517,5 +514,5 @@ module.exports = (client) => {
             .setTitle("✅ SYNC MIROIR OPÉRATIONNELLE")
             .setDescription("Les structures détruites ont été recréées à l'identique.");
         await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
-    };
+    });
 };
