@@ -48,8 +48,8 @@ const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
-const antiNuke = require("./events/antiNuke"); // 🔥 AJOUT : Ton système Anti-Nuke & Bunker
-const bienvenue = require("./events/bienvenue");
+const antiNuke = require("./events/antiNuke"); 
+const bienvenue = require("./events/bienvenue"); // Enregistré correctement
 
 // =========================
 // CONFIG STATUS
@@ -63,7 +63,10 @@ let index = 0;
 // =========================
 async function updateStatus() {
     try {
-        const guild = client.guilds.cache.get(GUILD_ID);
+        // Récupération de la guilde (Cache ou Fetch de secours pour éviter le 0)
+        let guild = client.guilds.cache.get(GUILD_ID);
+        if (!guild) guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
+        
         const memberCount = guild ? guild.memberCount : 0;
         let status;
 
@@ -118,7 +121,8 @@ client.once("ready", async () => {
         moderation(client);
         logsSystem(client);
         onboarding(client);
-        antiNuke(client); // 🔥 AJOUT : Initialisation de la forteresse Anti-Nuke & Bunker
+        antiNuke(client); 
+        bienvenue(client); // 🔥 CORRECTION : Initialisation du système de bienvenue qui manquait !
 
         console.log("✅ Tous les systèmes chargés.");
 
