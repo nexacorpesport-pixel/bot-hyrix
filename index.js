@@ -51,7 +51,7 @@ const client = new Client({
 // IMPORT EVENTS
 // =========================
 const antiSpam = require("./events/antiSpam");
-const onboarding = require("./events/onboarding");
+const onboarding = require("./events/onboarding"); // Ton fichier onboarding.js
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
@@ -148,9 +148,9 @@ async function updateStatus() {
 }
 
 // =========================
-// READY
+// READY (CORRIGÉ : "ready" au lieu de "clientReady")
 // =========================
-client.once("clientReady", async () => {
+client.once("ready", async () => {
 
     console.log(`✅ Logged as ${client.user.tag}`);
 
@@ -170,6 +170,8 @@ client.once("clientReady", async () => {
 
         logsSystem(client);
 
+        onboarding(client); // FIX : On initialise l'onboarding ici au démarrage comme les autres systèmes
+
         console.log("✅ Tous les systèmes chargés.");
 
         // =========================
@@ -185,23 +187,6 @@ client.once("clientReady", async () => {
     } catch (err) {
 
         console.log("❌ Erreur chargement systèmes :");
-        console.log(err);
-
-    }
-});
-
-// =========================
-// MEMBER JOIN
-// =========================
-client.on("guildMemberAdd", async (member) => {
-
-    try {
-
-        onboarding(client, member);
-
-    } catch (err) {
-
-        console.log("❌ Erreur onboarding :");
         console.log(err);
 
     }
