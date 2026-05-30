@@ -49,6 +49,7 @@ const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); // 🔥 AJOUT : Ton système Anti-Nuke & Bunker
+const bienvenue = require("./events/bienvenue");
 
 // =========================
 // CONFIG STATUS
