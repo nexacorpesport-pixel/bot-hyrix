@@ -264,6 +264,9 @@ module.exports = (client) => {
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
 
+        // 🔥 LA CORRECTION EST ICI : Si le bouton cliqué n'appartient pas au panneau de crise, on ignore complètement
+        if (!interaction.customId.startsWith("sec_unlock_") && interaction.customId !== "sec_global_lock") return;
+
         const hasAccess = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) || interaction.member.roles.cache.has(CEO_ROLE_ID);
         
         if (!hasAccess) {
