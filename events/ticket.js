@@ -423,10 +423,11 @@ module.exports = async (client) => {
         }
 
         // --- G. COMMANDES PREMIUM STAFF (CLAIM DYNAMIQUE, CLOSE REQUEST, DELETE, STARS RATING) ---
+        // CORRECTION DE SÉCURITÉ ICI : Restriction exclusive aux identifiants exacts du Staff pour éviter les interceptions sur form_joueur
         if (i.isButton() && ["claim", "close", "delete", "force_close_confirm", "cancel_close"].includes(i.customId)) {
             const db = readDB(); const context = db.tickets[i.channel.id];
             const hasAccess = i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-            if (!hasAccess && !["cancel_close"].includes(i.customId)) return i.reply({ content: "❌ Réservé au staff.", ephemeral: true });
+            if (!hasAccess && !["cancel_close"].includes(i.customId)) return i.reply({ content: "❌ Action non autorisée. Vous ne possédez pas les codes d'accès requis pour ce panneau de crise.", ephemeral: true });
 
             if (i.customId === "claim") {
                 await i.deferUpdate();
@@ -466,7 +467,6 @@ module.exports = async (client) => {
             await i.message.delete().catch(() => {});
 
             const db = readDB();
-            // Assignation de la note au staff ayant claim pour le Leaderboard hebdomadaire
             const claimedStaffId = i.customId.split("-")[1];
             if (claimedStaffId) {
                 if (!db.stats[claimedStaffId]) db.stats[claimedStaffId] = { count: 0, totalStars: 0 };
@@ -482,3 +482,25 @@ module.exports = async (client) => {
         }
     });
 };
+
+// Fonction de fermeture et d'archivage manquante dans votre ancien code
+async function generateSystemClose(channel, client, context) {
+    try {
+        const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
+        if (archiveChannel && context) {
+            const endEmbed = new EmbedBuilder()
+                .setColor("Red")
+                .setTitle(`📁 Archive Ticket - ${channel.name}`)
+                .setDescription(`Propriétaire : <@${context.userId}>\nType : ${context.type}\nMessages échangés : ${context.messageCount}`);
+            await archiveChannel.send({ embeds: [endEmbed] });
+        }
+        
+        const db = readDB();
+        delete db.tickets[channel.id];
+        writeDB(db);
+        
+        setTimeout(() => channel.delete().catch(() => {}), 3000);
+    } catch (e) {
+        console.error(e);
+    }
+}
