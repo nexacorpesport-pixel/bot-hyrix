@@ -19,7 +19,7 @@ const config = require("../data/ticketConfig");
 const LOGS_CHANNEL = "1508157026491175002";
 const ARCHIVE_CHANNEL = "1510019228047114300";
 
-// Base de données locale ultra-légère et portant (Anti-Crash/Reboot)
+// Base de données locale ultra-légère (Anti-Crash/Reboot)
 const DB_PATH = path.join(__dirname, "../data/ticket_database.json");
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify({ tickets: {}, blacklist: [], stats: {} }, null, 4));
@@ -27,15 +27,15 @@ if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify({ tickets:
 function readDB() { return JSON.parse(fs.readFileSync(DB_PATH, "utf-8")); }
 function writeDB(data) { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 4), "utf-8"); }
 
-// Cooldowns en mémoire vive (Anti-Spam / Anti-Double Click)
+// Cooldowns anti-double click
 const globalCooldowns = new Set();
 
 module.exports = async (client) => {
 
-    console.log("[TICKET] Initialisation du système ULTIME HoveX (All-In-One)...");
+    console.log("[TICKET] Initialisation du système HoveX...");
 
     // =====================================================
-    // 1. DÉPLOIEMENT DU PANEL PRINCIPAL
+    // 1. PANEL PRINCIPAL D'OUVERTURE
     // =====================================================
     const panelChannel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
     if (panelChannel) {
@@ -75,7 +75,6 @@ module.exports = async (client) => {
     client.on("messageCreate", async (message) => {
         if (message.author.bot || !message.guild) return;
 
-        // Mise à jour de l'activité du ticket (Anti-Inactivité)
         const db = readDB();
         if (db.tickets[message.channel.id]) {
             db.tickets[message.channel.id].lastActivity = Date.now();
@@ -83,80 +82,44 @@ module.exports = async (client) => {
             writeDB(db);
         }
 
-        // Commande : +test modérateur @membre
         if (message.content.startsWith("+test modérateur")) {
             const allowedRoles = config.ROLES.staff;
             const isStaff = message.member.roles.cache.some(r => allowedRoles.includes(r.id)) || message.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
-            
             if (!isStaff) return message.reply("❌ Tu n'as pas l'autorisation de lancer un test modérateur.");
 
             const targetUser = message.mentions.members.first();
-            if (!targetUser) return message.reply("❌ Tu dois mentionner un membre. Exemple : `+test modérateur @Pseudo`_");
+            if (!targetUser) return message.reply("❌ Tu dois mentionner un membre.");
 
             await targetUser.roles.add(config.TEST_MODO_ROLE).catch(() => {});
+            await message.channel.permissionOverwrites.edit(targetUser.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
 
-            await message.channel.permissionOverwrites.edit(targetUser.id, {
-                ViewChannel: true,
-                SendMessages: true,
-                ReadMessageHistory: true
-            }).catch(() => {});
-
-            const testEmbed = new EmbedBuilder()
-                .setColor("#3498db")
-                .setTitle("🛡️ ÉVALUATION TEST MODÉRATEUR")
-                .setDescription(`Bienvenue ${targetUser} dans ton espace de test de modération !\n\nLe rôle <@&${config.TEST_MODO_ROLE}> t'a été attribué. C'est ici que tu vas devoir faire tes preuves face au Staff de la **HoveX**.`);
-
-            return message.reply({ embeds: [testEmbed] });
-        }
-
-        // Commandes d'administration de la Blacklist globale des tickets
-        if (message.content.startsWith("+ticket blacklist")) {
-            if (!message.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) return;
-            const target = message.mentions.users.first();
-            if (!target) return message.reply("Usage: `+ticket blacklist @user`_");
-            
-            const db = readDB();
-            if (!db.blacklist.includes(target.id)) {
-                db.blacklist.push(target.id);
-                writeDB(db);
-                return message.reply(`✅ **${target.tag}** est maintenant banni du système de tickets.`);
-            } else {
-                db.blacklist = db.blacklist.filter(id => id !== target.id);
-                writeDB(db);
-                return message.reply(`✅ **${target.tag}** est retiré de la blacklist des tickets.`);
-            }
+            return message.reply({ embeds: [new EmbedBuilder().setColor("#3498db").setTitle("🛡️ ÉVALUATION TEST MODÉRATEUR").setDescription(`Bienvenue ${targetUser} dans ton espace de test.`)] });
         }
     });
 
     // =====================================================
-    // 3. GESTION DE TOUTES LES INTERACTIONS
+    // 3. GESTION DES INTERACTIONS (BOUTONS & MENUS)
     // =====================================================
     client.on("interactionCreate", async (i) => {
         if (!i.guild) return;
 
-        // --- ANTI-SPAM ET DOUBLE CLICK (2 SECONDES) ---
+        // Anti-Spam / Double Click
         if (i.isButton() || i.isStringSelectMenu()) {
             const cooldownKey = `${i.user.id}-${i.customId}`;
-            if (globalCooldowns.has(cooldownKey)) {
-                return i.reply({ content: "⏳ Ralentis ! Tu cliques trop vite.", ephemeral: true });
-            }
+            if (globalCooldowns.has(cooldownKey)) return i.reply({ content: "⏳ Un peu de patience, ne clique pas si vite.", ephemeral: true });
             globalCooldowns.add(cooldownKey);
-            setTimeout(() => globalCooldowns.delete(cooldownKey), 2000);
+            setTimeout(() => globalCooldowns.delete(cooldownKey), 1500);
         }
 
-        // --- A. OUVERTURE AUTOMATIQUE DES TICKETS ---
+        // --- A. OUVERTURE DES TICKETS ---
         if (i.isStringSelectMenu() && i.customId === "ticket_select") {
             const type = i.values[0];
             const db = readDB();
 
-            // Vérification Blacklist
-            if (db.blacklist.includes(i.user.id)) {
-                return i.reply({ content: "❌ Vous possédez une interdiction active vous empêchant d'ouvrir un ticket.", ephemeral: true });
-            }
+            if (db.blacklist.includes(i.user.id)) return i.reply({ content: "❌ Tu es banni du système de tickets.", ephemeral: true });
 
-            // Vérification doublon persistant
             const hasActiveTicket = Object.values(db.tickets).some(t => t.userId === i.user.id && t.status === "open");
-            if (hasActiveTicket) return i.reply({ content: "⏳ Vous possédez déjà un ticket ouvert.", ephemeral: true });
+            if (hasActiveTicket) return i.reply({ content: "⏳ Tu as déjà un ticket ouvert.", ephemeral: true });
 
             const categoryId = config.CATEGORIES[type];
             const basePermissions = [
@@ -175,20 +138,9 @@ module.exports = async (client) => {
                 permissionOverwrites: basePermissions
             });
 
-            // Enregistrement permanent dans la base JSON
-            db.tickets[ticketChannel.id] = {
-                userId: i.user.id,
-                username: i.user.username,
-                type: type,
-                createdAt: Date.now(),
-                lastActivity: Date.now(),
-                messageCount: 0,
-                status: "open",
-                claimedBy: null
-            };
+            db.tickets[ticketChannel.id] = { userId: i.user.id, username: i.user.username, type: type, createdAt: Date.now(), lastActivity: Date.now(), messageCount: 0, status: "open", claimedBy: null };
             writeDB(db);
 
-            // Génération des boutons principaux + Boutons Utilitaires
             const actionButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary).setEmoji("📌"),
                 new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Secondary).setEmoji("🔒"),
@@ -202,10 +154,7 @@ module.exports = async (client) => {
             );
 
             let mainEmbed = new EmbedBuilder().setColor("#ffb347").setTitle(`🎫 Ticket ${type.toUpperCase()} Ouvert`);
-
-            const infoEmbed = new EmbedBuilder()
-                .setColor("#2f3136")
-                .setDescription(`👤 **Demandeur :** ${i.user} (${i.user.id})\n📂 **Historique structure :** Aucune sanction active enregistrée.`);
+            const infoEmbed = new EmbedBuilder().setColor("#2f3136").setDescription(`👤 **Demandeur :** ${i.user} (${i.user.id})`);
 
             if (type === "joueur") {
                 mainEmbed.setDescription(`Espace de recrutement Joueur.\n\nClique sur le bouton ci-dessous pour lancer ton intégration automatique via tes PR.`);
@@ -213,12 +162,12 @@ module.exports = async (client) => {
                 await ticketChannel.send({ content: `<@${i.user.id}>`, embeds: [mainEmbed, infoEmbed], components: [actionButtons, utilityButtons] });
             } 
             else if (type === "staff") {
-                mainEmbed.setDescription(`Espace de recrutement Staff (Modération/Animation).\n\nMerci de cliquer sur le bouton ci-dessous pour remplir ton dossier de candidature complet.`);
+                mainEmbed.setDescription(`Espace de recrutement Staff.\n\nMerci de cliquer sur le bouton ci-dessous pour remplir ton dossier.`);
                 actionButtons.addComponents(new ButtonBuilder().setCustomId("form_staff").setLabel("Dossier Recrutement").setStyle(ButtonStyle.Primary).setEmoji("🛡️"));
                 await ticketChannel.send({ content: `<@${i.user.id}>`, embeds: [mainEmbed, infoEmbed], components: [actionButtons, utilityButtons] });
             } 
             else if (type === "audiovisuel") {
-                mainEmbed.setDescription("Espace Audiovisuel. Sélectionne ta spécialité ci-dessous pour ouvrir le formulaire adéquat :");
+                mainEmbed.setDescription("Espace Audiovisuel. Sélectionne ta spécialité ci-dessous :");
                 const audioMenu = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId("audio_form_select")
@@ -226,9 +175,7 @@ module.exports = async (client) => {
                         .addOptions([
                             { label: "Monteur", value: "monteur", emoji: "🎥" },
                             { label: "Graphiste", value: "graphiste", emoji: "🎨" },
-                            { label: "Mapper / Thumbnail Maker", value: "mapper", emoji: "🗺️" },
-                            { label: "Mia Maker", value: "mia", emoji: "🤖" },
-                            { label: "Caster", value: "caster", emoji: "🎙️" }
+                            { label: "Mapper", value: "mapper", emoji: "🗺️" }
                         ])
                 );
                 await ticketChannel.send({ content: `<@${i.user.id}>`, embeds: [mainEmbed, infoEmbed], components: [actionButtons, utilityButtons] });
@@ -241,11 +188,11 @@ module.exports = async (client) => {
             return i.reply({ content: `✅ Ticket créé : ${ticketChannel}`, ephemeral: true });
         }
 
-        // --- B. MODULE RECRUTEMENT JOUEUR ---
+        // --- B. FORMULAIRE RECRUTEMENT JOUEUR (ACCESSIBLE À TOUS) ---
         if (i.isButton() && i.customId === "form_joueur") {
             const db = readDB();
             const context = db.tickets[i.channel.id];
-            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
+            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Seul le créateur du ticket peut remplir ce formulaire.", ephemeral: true });
 
             const modal = new ModalBuilder().setCustomId("joueur_modal_submit").setTitle("Formulaire de Recrutement");
             modal.addComponents(
@@ -280,59 +227,46 @@ module.exports = async (client) => {
             const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
             if (logChannel) {
                 const logEmbed = new EmbedBuilder().setColor("Green").setTitle("📊 Rôle PR Assigné Automatiquement").setDescription(`Le joueur ${i.user} a complété son formulaire.`)
-                    .addFields({ name: "🎮 Epic", value: epic, inline: true }, { name: "🎂 Âge", value: age, inline: true }, { name: "🏆 Score PR", value: `${prValue} PR`, inline: true }, { name: "💻 Plateforme", value: platform, inline: true }, { name: "🏷️ Rôle Donné", value: `<@&${finalRole}> (${roleName})` }, { name: "📝 Motivation", value: motivation });
+                    .addFields({ name: "🎮 Epic", value: epic, inline: true }, { name: "🏆 Score PR", value: `${prValue} PR`, inline: true }, { name: "🏷️ Rôle Donné", value: `<@&${finalRole}> (${roleName})` });
                 await logChannel.send({ embeds: [logEmbed] });
             }
 
-            const followUpEmbed = new EmbedBuilder().setColor("Green").setTitle("✅ Rôle Attribué avec Succès !").setDescription(`Tes données ont été enregistrées. Le rôle **${roleName}** t'a été donné.\n\n**Question 1 :** As-tu besoin d'aide supplémentaire concernant ce rôle ?`);
+            const followUpEmbed = new EmbedBuilder().setColor("Green").setTitle("✅ Rôle Attribué !").setDescription(`Tes données ont été enregistrées. Le rôle **${roleName}** t'a été donné.\n\n**Question 1 :** As-tu besoin d'aide supplémentaire concernant ce rôle ?`);
             const helpRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("follow_help_yes").setLabel("Oui").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId("follow_help_no").setLabel("Non").setStyle(ButtonStyle.Secondary));
             await i.channel.send({ content: `<@${i.user.id}>`, embeds: [followUpEmbed], components: [helpRow] });
-            return i.editReply({ content: "Formulaire traité et validé !" });
+            return i.editReply({ content: "Formulaire traité avec succès !" });
         }
 
-        // --- C. MODULE RECRUTEMENT STAFF ---
+        // --- C. FORMULAIRE STAFF (ACCESSIBLE À TOUS) ---
         if (i.isButton() && i.customId === "form_staff") {
-            const db = readDB();
-            const context = db.tickets[i.channel.id];
-            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
+            const db = readDB(); const context = db.tickets[i.channel.id];
+            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Seul le créateur du ticket peut faire cela.", ephemeral: true });
 
-            const modal = new ModalBuilder().setCustomId("staff_modal_submit").setTitle("Candidature Staff - HoveX");
+            const modal = new ModalBuilder().setCustomId("staff_modal_submit").setTitle("Candidature Staff");
             modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("age").setLabel("Quel est ton âge ?").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("xp").setLabel("Tes anciennes expériences de modération ?").setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("dispo").setLabel("Vos disponibilités (Heures/Semaine) ?").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("situation").setLabel("Que ferais-tu en cas de conflit textuel ?").setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Pourquoi toi et pas un autre ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("age").setLabel("Âge").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("xp").setLabel("Expériences").setStyle(TextInputStyle.Paragraph).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Motivations").setStyle(TextInputStyle.Paragraph).setRequired(true))
             );
             return i.showModal(modal);
         }
 
         if (i.isModalSubmit() && i.customId === "staff_modal_submit") {
             await i.deferReply({ ephemeral: true });
-            const fields = ["age", "xp", "dispo", "situation", "motivation"].map(id => i.fields.getTextInputValue(id));
-
-            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logChannel) {
-                const staffLog = new EmbedBuilder().setColor("#e74c3c").setTitle("🛡️ Nouveau Dossier Candidature Staff").setDescription(`Postulant : ${i.user}`)
-                    .addFields({ name: "🎂 Âge", value: fields[0], inline: true }, { name: "⏳ Dispos", value: fields[2], inline: true }, { name: "📁 Expériences", value: fields[1] }, { name: "⚡ Cas Pratique", value: fields[3] }, { name: "🎯 Motivations", value: fields[4] });
-                await logChannel.send({ embeds: [staffLog] });
-            }
-            await i.channel.send({ embeds: [new EmbedBuilder().setColor("Green").setTitle("📝 Dossier envoyé !").setDescription("Ton dossier complet de modération a été transmis au haut-staff.")] });
-            return i.editReply({ content: "Candidature Staff envoyée !" });
+            await i.channel.send({ embeds: [new EmbedBuilder().setColor("Green").setTitle("📝 Envoi réussi !").setDescription("Candidature transmise au Staff.")] });
+            return i.editReply({ content: "Envoyé !" });
         }
 
-        // --- D. MODULE AUDIOVISUEL ---
+        // --- D. FORMULAIRE AUDIOVISUEL (ACCESSIBLE À TOUS) ---
         if (i.isStringSelectMenu() && i.customId === "audio_form_select") {
             const db = readDB(); const context = db.tickets[i.channel.id];
-            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
+            if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Non autorisé.", ephemeral: true });
 
             const choice = i.values[0];
             const modal = new ModalBuilder().setCustomId(`audio_submit_${choice}`).setTitle(`Formulaire ${choice.toUpperCase()}`);
             modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("portfolio").setLabel("Lien de ton Portfolio / Réalisations").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("softwares").setLabel("Logiciels utilisés (Suite Adobe, Blender...)").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("xp").setLabel("Depuis combien de temps pratiques-tu ?").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Tes motivations à rejoindre l'audiovisuel").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("portfolio").setLabel("Lien Portfolio").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Motivations").setStyle(TextInputStyle.Paragraph).setRequired(true))
             );
             return i.showModal(modal);
         }
@@ -340,94 +274,74 @@ module.exports = async (client) => {
         if (i.isModalSubmit() && i.customId.startsWith("audio_submit_")) {
             await i.deferReply({ ephemeral: true });
             const specialty = i.customId.split("_").pop();
-            const portfolio = i.fields.getTextInputValue("portfolio");
-            const softwares = i.fields.getTextInputValue("softwares");
-            const xp = i.fields.getTextInputValue("xp");
-            const motivation = i.fields.getTextInputValue("motivation");
-
             const autoRole = config.AUDIO_ROLES[specialty];
             if (autoRole) await i.member.roles.add(autoRole).catch(() => {});
 
-            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logChannel) {
-                const audioLog = new EmbedBuilder().setColor("#9b59b6").setTitle(`🎬 Recrutement Audiovisuel [${specialty.toUpperCase()}]`).setDescription(`Membre : ${i.user}`)
-                    .addFields({ name: "🔗 Portfolio", value: portfolio }, { name: "🛠️ Logiciels", value: softwares, inline: true }, { name: "⏳ Expérience", value: xp, inline: true }, { name: "📝 Motivation", value: motivation });
-                await logChannel.send({ embeds: [audioLog] });
-            }
-            await i.channel.send({ embeds: [new EmbedBuilder().setColor("Purple").setTitle("🎬 Profil Enregistré Automatiquement !").setDescription(`Ton rôle de **${specialty.toUpperCase()}** t'a été attribué.`)] });
-            return i.editReply({ content: "Formulaire Audiovisuel pris en compte !" });
+            await i.channel.send({ embeds: [new EmbedBuilder().setColor("Purple").setTitle("🎬 Rôle Attribué !").setDescription(`Ton rôle associé à la catégorie **${specialty.toUpperCase()}** a été configuré.`)] });
+            return i.editReply({ content: "Validé !" });
         }
 
-        // --- E. SUIVI DE L'ENCHAÎNEMENT DES QUESTIONS JOUEUR ---
+        // --- E. ENCHAÎNEMENT DES QUESTIONS SUIVANTES ---
         if (i.isButton() && ["follow_help_yes", "follow_help_no", "follow_struct_yes", "follow_struct_no"].includes(i.customId)) {
             const db = readDB(); const context = db.tickets[i.channel.id];
-            if (!context || i.user.id !== context.userId) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
+            if (!context || i.user.id !== context.userId) return i.reply({ content: "❌ Non autorisé.", ephemeral: true });
             await i.deferUpdate();
 
             if (i.customId === "follow_help_yes" || i.customId === "follow_help_no") {
                 const structRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("follow_struct_yes").setLabel("Oui").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId("follow_struct_no").setLabel("Non").setStyle(ButtonStyle.Secondary));
-                await i.channel.send({ embeds: [new EmbedBuilder().setColor("#34495e").setTitle("❓ Question Suivante").setDescription("As-tu des questions particulières à poser concernant le fonctionnement de notre structure (HoveX) ?")], components: [structRow] });
+                await i.channel.send({ embeds: [new EmbedBuilder().setColor("#34495e").setTitle("❓ Structure").setDescription("As-tu des questions sur la HoveX ?")], components: [structRow] });
             }
             if (i.customId === "follow_struct_no") {
-                await i.channel.send({ content: "🏁 Clôture automatique du ticket..." });
+                await i.channel.send({ content: "🏁 Clôture et archivage automatique..." });
                 await generateSystemClose(i.channel, client, context);
-            }
-            if (i.customId === "follow_struct_yes") {
-                const menuCount = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("user_questions_count").setPlaceholder("Choisis le nombre...").addOptions([{ label: "1 Question", value: "1" }, { label: "2 Questions", value: "2" }, { label: "3 Questions ou plus", value: "3" }]));
-                await i.channel.send({ embeds: [new EmbedBuilder().setColor("#2ecc71").setTitle("💬 Nombre de questions").setDescription("Combien de questions souhaites-tu soumettre à l'équipe ?")], components: [menuCount] });
             }
         }
 
-        // --- F. GESTION DES BOUTONS UTILITAIRES (ADD/REMOVE, VOCAL) ---
+        // --- F. BOUTONS UTILITAIRES (MODÉRATEURS UNIQUEMENT) ---
         if (i.isButton() && ["ticket_add_user", "ticket_remove_user", "ticket_create_voice"].includes(i.customId)) {
             const db = readDB(); const context = db.tickets[i.channel.id];
             const hasAccess = i.member.permissions.has(PermissionsBitField.Flags.ManageChannels) || i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id));
             if (!hasAccess) return i.reply({ content: "❌ Action réservée aux modérateurs.", ephemeral: true });
 
             if (i.customId === "ticket_add_user" || i.customId === "ticket_remove_user") {
-                const modal = new ModalBuilder().setCustomId(`modal_user_${i.customId}`).setTitle("Gestion des Membres");
-                modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("user_id").setLabel("Identifiant Discord (ID)").setStyle(TextInputStyle.Short).setRequired(true)));
+                const modal = new ModalBuilder().setCustomId(`modal_user_${i.customId}`).setTitle("Membres");
+                modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("user_id").setLabel("ID Discord").setStyle(TextInputStyle.Short).setRequired(true)));
                 return i.showModal(modal);
             }
 
             if (i.customId === "ticket_create_voice") {
                 await i.deferReply();
-                const voiceChannel = await i.guild.channels.create({
-                    name: `🔊 Entretien ${i.channel.name.split("-")[1] || ""}`,
-                    type: ChannelType.GuildVoice,
-                    parent: i.channel.parentId,
-                    permissionOverwrites: i.channel.permissionOverwrites.cache.map(p => p)
-                });
-                return i.editReply({ content: `🔊 Salon vocal d'entretien éphémère créé avec succès : ${voiceChannel}` });
+                const voiceChannel = await i.guild.channels.create({ name: `🔊 Entretien-${i.channel.name.split("-")[1] || ""}`, type: ChannelType.GuildVoice, parent: i.channel.parentId, permissionOverwrites: i.channel.permissionOverwrites.cache.map(p => p) });
+                return i.editReply({ content: `🔊 Salon vocal d'entretien éphémère actif : ${voiceChannel}` });
             }
         }
 
-        // Réception des soumissions Modals Add/Remove Membre
+        // Soumissions Modals Add/Remove Membre
         if (i.isModalSubmit() && i.customId.startsWith("modal_user_")) {
             await i.deferReply({ ephemeral: true });
             const actionType = i.customId.includes("add") ? "add" : "remove";
             const targetId = i.fields.getTextInputValue("user_id");
             const targetMember = await i.guild.members.fetch(targetId).catch(() => null);
 
-            if (!targetMember) return i.editReply({ content: "❌ Membre introuvable. Assure-toi de fournir une ID valide." });
+            if (!targetMember) return i.editReply({ content: "❌ ID introuvable." });
 
             if (actionType === "add") {
                 await i.channel.permissionOverwrites.edit(targetMember.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
-                await i.channel.send({ content: `➕ ${targetMember} a été ajouté au ticket par ${i.user}.` });
+                await i.channel.send({ content: `➕ ${targetMember} a été ajouté au ticket.` });
             } else {
                 await i.channel.permissionOverwrites.delete(targetMember.id);
-                await i.channel.send({ content: `➖ ${targetMember} a été retiré du ticket par ${i.user}.` });
+                await i.channel.send({ content: `➖ ${targetMember} a été retiré du ticket.` });
             }
-            return i.editReply({ content: "Permissions mises à jour !" });
+            return i.editReply({ content: "Permissions mises à jour." });
         }
 
-        // --- G. COMMANDES SÉCURISÉES STAFF (CLAIM, CLOSE, DELETE) ---
+        // --- G. ACTIONS EXCLUSIVES DU STAFF (CLAIM, CLOSE, SUPPRESSION) ---
         if (i.isButton() && ["claim", "close", "delete", "force_close_confirm", "cancel_close"].includes(i.customId)) {
             const db = readDB(); const context = db.tickets[i.channel.id];
             const hasAccess = i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
             
             if (!hasAccess && !["cancel_close"].includes(i.customId)) {
-                return i.reply({ content: "❌ Action réservée au Staff autorisé.", ephemeral: true });
+                return i.reply({ content: "❌ Action non autorisée. Rôles Staff requis.", ephemeral: true });
             }
 
             if (i.customId === "claim") {
@@ -443,55 +357,35 @@ module.exports = async (client) => {
             if (i.customId === "close") {
                 if (context) await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: false }).catch(() => null);
                 const closeConfirmRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Confirmer la suppression").setStyle(ButtonStyle.Danger).setEmoji("🗑️"),
-                    new ButtonBuilder().setCustomId("cancel_close").setLabel("Réouvrir les accès").setStyle(ButtonStyle.Secondary).setEmoji("🔓")
+                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Supprimer le salon").setStyle(ButtonStyle.Danger).setEmoji("🗑️"),
+                    new ButtonBuilder().setCustomId("cancel_close").setLabel("Réouvrir l'accès").setStyle(ButtonStyle.Secondary).setEmoji("🔓")
                 );
-                return i.reply({ embeds: [new EmbedBuilder().setColor("#f1c40f").setTitle("🔒 Fin de prise en charge").setDescription("Voulez-vous détruire et archiver ce salon ?")], components: [closeConfirmRow] });
+                return i.reply({ embeds: [new EmbedBuilder().setColor("#f1c40f").setTitle("🔒 Options de fermeture").setDescription("Voulez-vous supprimer définitivement ce ticket ?")], components: [closeConfirmRow] });
             }
 
             if (i.customId === "cancel_close") {
                 if (context) await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: true, SendMessages: true }).catch(() => null);
                 await i.message.delete().catch(() => {});
-                return i.reply({ content: "🔓 Ticket réouvert." });
+                return i.reply({ content: "🔓 Accès rétablis pour l'utilisateur." });
             }
 
             if (i.customId === "delete" || i.customId === "force_close_confirm") {
-                await i.reply({ content: "⏳ Archivage, compilation des statistiques et suppression du salon..." });
+                await i.reply({ content: "⏳ Compilation des logs et suppression en cours..." });
                 await generateSystemClose(i.channel, client, context);
-            }
-        }
-
-        // --- H. RECEPTION DES NOTES ⭐ ---
-        if (i.isButton() && i.customId.startsWith("rate_stars_")) {
-            const ratingValue = parseInt(i.customId.split("_").pop());
-            await i.reply({ content: `⭐ Merci pour ta note de **${ratingValue}/5** !`, ephemeral: true });
-            await i.message.delete().catch(() => {});
-
-            const db = readDB();
-            const claimedStaffId = i.customId.split("-")[1];
-            if (claimedStaffId) {
-                if (!db.stats[claimedStaffId]) db.stats[claimedStaffId] = { count: 0, totalStars: 0 };
-                db.stats[claimedStaffId].count += 1;
-                db.stats[claimedStaffId].totalStars += ratingValue;
-                writeDB(db);
-            }
-
-            const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logChannel) {
-                await logChannel.send({ embeds: [new EmbedBuilder().setColor("Gold").setTitle("⭐ Évaluation Reçue").setDescription(`Qualité du support évaluée à **${ratingValue}/5**.`)] });
             }
         }
     });
 };
 
+// Fonction globale d'archivage et de suppression
 async function generateSystemClose(channel, client, context) {
     try {
         const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
         if (archiveChannel && context) {
             const endEmbed = new EmbedBuilder()
                 .setColor("Red")
-                .setTitle(`📁 Archive Ticket - ${channel.name}`)
-                .setDescription(`Propriétaire : <@${context.userId}>\nType : ${context.type}\nMessages échangés : ${context.messageCount}`);
+                .setTitle(`📁 Archive - ${channel.name}`)
+                .setDescription(`Demandeur : <@${context.userId}>\nType : ${context.type}\nMessages : ${context.messageCount}`);
             await archiveChannel.send({ embeds: [endEmbed] });
         }
         
@@ -499,7 +393,7 @@ async function generateSystemClose(channel, client, context) {
         delete db.tickets[channel.id];
         writeDB(db);
         
-        setTimeout(() => channel.delete().catch(() => {}), 3000);
+        setTimeout(() => channel.delete().catch(() => {}), 2000);
     } catch (e) {
         console.error(e);
     }
