@@ -49,7 +49,8 @@ const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
-const bienvenue = require("./events/bienvenue"); // Enregistré correctement
+const bienvenue = require("./events/bienvenue");
+const activityAI = require("./events/activityAI"); // 🔥 AJOUT : Importation du module de discussion IA HoveX-AI
 
 // =========================
 // CONFIG STATUS
@@ -122,7 +123,8 @@ client.once("ready", async () => {
         logsSystem(client);
         onboarding(client);
         antiNuke(client); 
-        bienvenue(client); // 🔥 CORRECTION : Initialisation du système de bienvenue qui manquait !
+        bienvenue(client);
+        activityAI(client); // 🔥 AJOUT : Initialisation du système de discussion IA !
 
         console.log("✅ Tous les systèmes chargés.");
 
