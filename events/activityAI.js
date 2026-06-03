@@ -3,22 +3,28 @@ const { OpenAI } = require("openai");
 const fs = require("fs");
 const path = require("path");
 
-// Chemin vers ton nouveau fichier de config épuré
+// Chemin vers ton fichier de config
 const CONFIG_PATH = path.join(__dirname, "../data/botAIConfig.json");
 
 let config = {};
 if (fs.existsSync(CONFIG_PATH)) {
-    config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-} else {
-    console.log("[🤖 HOVEX-AI] Erreur : Le fichier data/botAIConfig.json est introuvable.");
+    try {
+        config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    } catch (e) {
+        console.log("[🤖 HOVEX-AI] Erreur de lecture du fichier JSON, utilisation des variables d'environnement.");
+    }
 }
 
-// Initialisation de l'IA avec la bonne clé du fichier botAIConfig
-const openai = config.OPENAI_KEY ? new OpenAI({ apiKey: config.OPENAI_KEY }) : null;
+// 🔥 CORRECTION : Priorité à la variable d'environnement Render, sinon le JSON
+const apiKey = process.env.OPENAI_KEY || config.OPENAI_KEY;
+const channelId = config.CHILL_AI_CHANNEL || "1505330791268487319"; // ID de secours si le JSON n'est pas lu
+
+const openai = apiKey && apiKey !== "PROCESS_ENV" ? new OpenAI({ apiKey: apiKey }) : null;
 
 module.exports = async (client) => {
+    // Si l'IA n'est pas initialisée, on met un message clair dans les logs au lieu de crash
     if (!openai) {
-        return console.log("[🤖 HOVEX-AI] Clé API manquante dans botAIConfig.json. Le module discussion est désactivé.");
+        return console.log("[🤖 HOVEX-AI] Clé API manquante ou invalide. Renseigne OPENAI_KEY sur Render. Module désactivé.");
     }
 
     console.log("[🤖 HOVEX-AI] Module de discussion et d'activité HoveX chargé avec succès !");
@@ -26,7 +32,7 @@ module.exports = async (client) => {
     client.on("messageCreate", async (message) => {
         // On ignore les bots et les messages hors du salon dédié au chill
         if (message.author.bot || !message.guild) return;
-        if (message.channel.id !== config.CHILL_AI_CHANNEL) return;
+        if (message.channel.id !== channelId) return;
 
         // Liste de mots-clés de salutation pour animer la discussion
         const greetings = ["salut", "bonjour", "yo", "wsh", "cc", "hello", "slt", "hey"];
@@ -35,7 +41,7 @@ module.exports = async (client) => {
         const isGreeting = greetings.some(greet => messageLower.includes(greet));
         const mentionsBot = message.mentions.has(client.user.id);
 
-        // 50% de chance de répondre aux messages normaux pour ne pas spammer, mais 100% si on lui dit bonjour ou qu'on le mentionne
+        // 50% de chance de répondre aux messages normaux, 100% si bonjour ou mention
         if (!isGreeting && !mentionsBot && Math.random() > 0.5) return;
 
         // Effet "Le bot écrit..."
