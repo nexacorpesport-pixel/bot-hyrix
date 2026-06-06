@@ -83,14 +83,14 @@ async function updateStatus() {
         else if (index === 1) {
             status = {
                 type: ActivityType.Watching,
-                name: `Surveille ${memberCount} membres 👀`
+                name: `Surveille ${memberCount} membres`
             };
         }
         // STATUS 3
         else {
             status = {
                 type: ActivityType.Watching,
-                name: "Dev By Vyrn 🧑‍💻"
+                name: "Dev By Logs"
             };
         }
 
