@@ -17,9 +17,9 @@ const path = require("path");
 const config = require("../data/ticketConfig");
 
 // Identifiants des salons système
-const LOGS_CHANNEL = "1508157026491175002";
-const ARCHIVE_CHANNEL = "1510019228047114300";
-const AVIS_CHANNEL = "1510250586703003708"; 
+const LOGS_CHANNEL = "1521923500439240968";
+const ARCHIVE_CHANNEL = "1521923533272256773";
+const AVIS_CHANNEL = "1521923443006898237"; 
 
 // Base de données locale (Anti-Crash & Statistiques / Blacklist)
 const DB_PATH = path.join(__dirname, "../data/ticket_database.json");
