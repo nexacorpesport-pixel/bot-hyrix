@@ -306,7 +306,7 @@ module.exports = (client) => {
                     const rulesMenu = new StringSelectMenuBuilder()
                         .setCustomId("ob_rules")
                         .setPlaceholder("⚖️ Acceptation de la charte...")
-                        .addOptions([{ label: "J'ai lu et j'accepte le règlement de Pyxar", value: "accept", emoji: "✅" }]);
+                        .addOptions([{ label: "J'ai lu et j'accepte le règlement de HoveX", value: "accept", emoji: "✅" }]);
 
                     const embed = new EmbedBuilder()
                         .setColor("#ffb347")
