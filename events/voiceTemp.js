@@ -17,12 +17,12 @@ const path = require("path");
 // =========================================
 // CONFIGURATION DES IDENTIFIANTS
 // =========================================
-const TRIGGER_CHANNEL = "1507467019715481731";
-const TEMP_CATEGORY = "1505330761153380476";
-const LOGS_CHANNEL = "1508157067461132510";
+const TRIGGER_CHANNEL = "1501626007562485910";
+const TEMP_CATEGORY = "1501626005662597121";
+const LOGS_CHANNEL = "1521931122043256892";
 
 // Rôles Staff autorisés à bypasser les salons privés et recevoir les alertes
-const STAFF_ROLES = ["1506019438820987061", "1505330696619688027"]; // Mets ici les IDs de tes rôles Staff (Modo, Admin, etc.)
+const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"]; // Mets ici les IDs de tes rôles Staff (Modo, Admin, etc.)
 
 // =========================================
 // STOCKAGE LOCAL & BASES DE DONNÉES
