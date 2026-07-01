@@ -55,7 +55,7 @@ const activityAI = require("./events/activityAI"); // 🔥 AJOUT : Importation d
 // =========================
 // CONFIG STATUS
 // =========================
-const GUILD_ID = "1505330441274658876";
+const GUILD_ID = "1501625824028266676";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
 let index = 0;
 
@@ -90,7 +90,7 @@ async function updateStatus() {
         else {
             status = {
                 type: ActivityType.Watching,
-                name: "Dev By Logs"
+                name: "Dev By Zeynor"
             };
         }
 
