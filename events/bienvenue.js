@@ -6,22 +6,22 @@ const invitesCache = new Map();
 module.exports = (client) => {
     console.log("[👋 ONBOARDING] Module d'accueil épuré avec boutons de redirection opérationnel.");
 
-    const GUILD_ID = "1505330441274658876";
+    const GUILD_ID = "1501625824028266676";
     
     // ==========================================
     // CONFIGURATION DES SALONS (ID CORRIGÉ ICI)
     // ==========================================
     const CHANNELS = {
-        WELCOME: "1505330766047875242", // 🔥 Correction : Ton salon de bienvenue textuel
-        LOGS_MEMBRES: "1508156766259777686",
-        LOGS_INVITES: "1510277603720826970"
+        WELCOME: "1501626008564928572", // 🔥 Correction : Ton salon de bienvenue textuel
+        LOGS_MEMBRES: "1521930283094638722",
+        LOGS_INVITES: "1502757854568779944"
     };
 
     // Liens vers tes salons pour les boutons et les redirections
     const LINKS = {
-        REGLEMENT: "https://discord.com/channels/1505330441274658876/1505330768996602119",
-        PRESENTATION: "https://discord.com/channels/1505330441274658876/1505330784519848036",
-        CRITERES: "https://discord.com/channels/1505330441274658876/1505330771508854845"
+        REGLEMENT: "https://discord.com/channels/1501625824028266676/1501626010049712180",
+        PRESENTATION: "https://discord.com/channels/1501625824028266676/1501626026252304555",
+        CRITERES: "https://discord.com/channels/1501625824028266676/1501626012822147162"
     };
 
     // Couleur Rose Team HoveX
