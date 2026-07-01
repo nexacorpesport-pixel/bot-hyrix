@@ -30,27 +30,27 @@ const statsDatabase = {
 module.exports = (client) => {
 
     // Identifiant unique du salon des logs pour le staff
-    const LOGS_CHANNEL = "1510039415454568569";
+    const LOGS_CHANNEL = "1521965352093749259";
 
     // Rôles principaux (Vérifie bien que ces IDs sont corrects sur ton Discord)
-    const ARRIVE_ROLE = "1505625588121997572";  
-    const MEMBRE_ROLE = "1505330732187521035";  
-    const VERIFIED_ROLE = "1505330731193335920"; 
+    const ARRIVE_ROLE = "1521965478724108562";  
+    const MEMBRE_ROLE = "1501625972896825434";  
+    const VERIFIED_ROLE = "1501625972896825434"; 
 
     // Rôles des options
-    const HOMME_ROLE = "1505330737187131544";
-    const FEMME_ROLE = "1505330738772574208";
-    const NP_ROLE = "1505330739753783458";
+    const HOMME_ROLE = "1501625976290021609";
+    const FEMME_ROLE = "1501625977296654376";
+    const NP_ROLE = "1501625978621788291";
 
-    const ANNONCES_ROLE = "1505330743721721956";
-    const LIVES_ROLE = "1505330746301354024";
-    const EVENTS_ROLE = "1505330745072156904";
-    const RESEAUX_ROLE = "1505625990359945318";
+    const ANNONCES_ROLE = "1501625982937727096";
+    const LIVES_ROLE = "1501625985588793494";
+    const EVENTS_ROLE = "1501625984334561372";
+    const RESEAUX_ROLE = "1501625974066909374";
 
-    const JOUEUR_ROLE = "1505330740869599383";
-    const STAFF_ROLE = "1505330741234567890";
+    const JOUEUR_ROLE = "1501625979905245215";
+    const STAFF_ROLE = "1501625981495021721";
 
-    const CEO_ROLE = "1505330692106485781";
+    const CEO_ROLE = "1501625944148934758";
 
     // Fonction de nettoyage des rôles en cas de réinitialisation
     const clearOnboardingRoles = async (member) => {
