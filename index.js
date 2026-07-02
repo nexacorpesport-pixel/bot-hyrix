@@ -50,7 +50,7 @@ const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
 const bienvenue = require("./events/bienvenue");
-const coaching = require("./events/coaching");
+const coaching = require("./events/coaching"); // ✅ Le système de coaching est bien importé ici
 
 // =========================
 // CONFIG STATUS
@@ -64,14 +64,12 @@ let index = 0;
 // =========================
 async function updateStatus() {
     try {
-        // Récupération de la guilde (Cache ou Fetch de secours pour éviter le 0)
         let guild = client.guilds.cache.get(GUILD_ID);
         if (!guild) guild = await client.guilds.fetch(GUILD_ID).catch(() => null);
         
         const memberCount = guild ? guild.memberCount : 0;
         let status;
 
-        // STATUS 1
         if (index === 0) {
             status = {
                 type: ActivityType.Streaming,
@@ -79,14 +77,12 @@ async function updateStatus() {
                 url: TWITCH_URL
             };
         }
-        // STATUS 2
         else if (index === 1) {
             status = {
                 type: ActivityType.Watching,
                 name: `Surveille ${memberCount} membres`
             };
         }
-        // STATUS 3
         else {
             status = {
                 type: ActivityType.Watching,
@@ -124,7 +120,7 @@ client.once("ready", async () => {
         onboarding(client);
         antiNuke(client); 
         bienvenue(client);
-        activityAI(client); // 🔥 AJOUT : Initialisation du système de discussion IA !
+        coaching(client); // ✅ CORRECTION : Initialisation du pôle coaching à la place de l'ancienne IA !
 
         console.log("✅ Tous les systèmes chargés.");
 
