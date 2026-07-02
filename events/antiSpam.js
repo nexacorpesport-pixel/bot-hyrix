@@ -80,7 +80,7 @@ module.exports = (client) => {
 
     console.log("[🛡️ ULTRA SECURITY V3] Forteresse anti-spam globale et d'analyse comportementale armée.");
 
-    const LOGS_CHANNEL_ID = 1522354627633217597";
+    const LOGS_CHANNEL_ID = "1522354627633217597";
     const CEO_ROLE_ID = "1501625944148934758";
 
     const triggerStaffAlert = async (guild, violatedChannel, offender, reasonText) => {
