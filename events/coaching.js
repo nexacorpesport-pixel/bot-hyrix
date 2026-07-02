@@ -36,13 +36,14 @@ function checkQuota(userId) {
 }
 
 function setQuota(userId) {
+    if (!fs.existsSync(QUOTA_PATH)) fs.writeFileSync(QUOTA_PATH, JSON.stringify({}));
     const quotas = JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
     quotas[userId] = new Date().getMonth() + "-" + new Date().getFullYear();
     fs.writeFileSync(QUOTA_PATH, JSON.stringify(quotas, null, 2));
 }
 
 function resetQuota(userId) {
-    if (!fs.existsSync(QUOTA_PATH)) return;
+    if (!fs.existsSync(QUOTA_PATH)) fs.writeFileSync(QUOTA_PATH, JSON.stringify({}));
     const quotas = JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
     delete quotas[userId];
     fs.writeFileSync(QUOTA_PATH, JSON.stringify(quotas, null, 2));
@@ -118,7 +119,7 @@ module.exports = async (client) => {
                     "⚠️ **Règles importantes :**\n" +
                     "• **1 seule séance** par mois et par grinder.\n" +
                     "• Remplis ta fiche avec un maximum de sérieux.\n" +
-                    "• L'honnêteté sur tes points faibles est obligatoire."
+                    "• Indique clairement tes points faibles et tes disponibilités."
                 )
                 .setColor("#ff007f");
 
@@ -142,35 +143,35 @@ module.exports = async (client) => {
                 }
 
                 const selectMenu = new StringSelectMenuBuilder()
-                    .setCustomId("select_earnings")
-                    .setPlaceholder("Sélectionne tes gains actuels (Earnings/PR) :")
+                    .setCustomId("select_pr")
+                    .setPlaceholder("Sélectionne ton Power Ranking (PR) actuel :")
                     .addOptions([
-                        { label: "Entre 0 et 20", value: "0-20" },
-                        { label: "Entre 20 et 40", value: "20-40" },
-                        { label: "Entre 40 et 60", value: "40-60" },
-                        { label: "Entre 60 et 80", value: "60-80" },
-                        { label: "Plus de 80 / 100", value: "80-100" }
+                        { label: "Entre 0 et 20 PR", value: "0-20" },
+                        { label: "Entre 20 et 40 PR", value: "20-40" },
+                        { label: "Entre 40 et 60 PR", value: "40-60" },
+                        { label: "Entre 60 et 80 PR", value: "60-80" },
+                        { label: "Plus de 80 / 100+ PR", value: "80-100+" }
                     ]);
 
                 await interaction.reply({ 
-                    content: "Étape 1/2 : Indique ton niveau de gains pour débloquer le formulaire.", 
+                    content: "Étape 1/2 : Indique ta tranche de PR pour débloquer le formulaire.", 
                     components: [new ActionRowBuilder().addComponents(selectMenu)], 
                     ephemeral: true 
                 });
             }
 
             // 2. Sélection du menu déroulant -> Ouverture du Modal
-            if (interaction.isStringSelectMenu() && interaction.customId === "select_earnings") {
-                const earnings = interaction.values[0];
+            if (interaction.isStringSelectMenu() && interaction.customId === "select_pr") {
+                const prValue = interaction.values[0];
                 
                 const modal = new ModalBuilder()
-                    .setCustomId(`modal_coaching_${earnings}`)
+                    .setCustomId(`modal_coaching_${prValue}`)
                     .setTitle("Fiche de Suivi Coaching");
 
                 modal.addComponents(
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_age").setLabel("Ton Âge :").setPlaceholder("Ex: 16 ans").setStyle(TextInputStyle.Short).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_game").setLabel("Jeu & Rang actuel :").setPlaceholder("Ex: Fortnite - Unreal").setStyle(TextInputStyle.Short).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_weak").setLabel("Points Faibles (SINCÈRE & OBLIGATOIRE) :").setPlaceholder("Détaille ici tes difficultés (Mécaniques, mental, stress...)").setStyle(TextInputStyle.Paragraph).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_rank").setLabel("Ton Rang actuel :").setPlaceholder("Ex: Unreal / Radiant / Master").setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_weak").setLabel("Points Faibles :").setPlaceholder("Détaille ici tes difficultés (Mécaniques, mental, stress...)").setStyle(TextInputStyle.Paragraph).setRequired(true)),
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_date").setLabel("Tes disponibilités globales :").setPlaceholder("Ex: Le week-end en après-midi").setStyle(TextInputStyle.Short).setRequired(true))
                 );
 
@@ -180,15 +181,11 @@ module.exports = async (client) => {
             // 3. Traitement de la fiche envoyée
             if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_coaching_")) {
                 await interaction.deferReply({ ephemeral: true });
-                const earnings = interaction.customId.split("_")[2];
+                const prValue = interaction.customId.split("_")[2];
                 const age = interaction.fields.getTextInputValue("c_age");
-                const game = interaction.fields.getTextInputValue("c_game");
+                const rank = interaction.fields.getTextInputValue("c_rank");
                 const weaknesses = interaction.fields.getTextInputValue("c_weak");
                 const dateWish = interaction.fields.getTextInputValue("c_date");
-
-                if (weaknesses.length < 10 || weaknesses.toLowerCase().includes("aucun")) {
-                    return interaction.editReply({ content: "❌ **Demande annulée :** Tu dois inscrire de vrais points faibles pour qu'un coach puisse t'accompagner." });
-                }
 
                 setQuota(interaction.user.id);
 
@@ -200,16 +197,17 @@ module.exports = async (client) => {
                     .addFields(
                         { name: "👤 Joueur", value: `<@${interaction.user.id}>`, inline: true },
                         { name: "🎂 Âge", value: age, inline: true },
-                        { name: "💰 Power Ranking", value: `${earnings}€`, inline: true },
-                        { name: "🎮 Jeu & Rang", value: game, inline: true },
+                        { name: "📈 Power Ranking", value: `${prValue} PR`, inline: true },
+                        { name: "🏆 Rang", value: rank, inline: true },
                         { name: "🗓️ Créneaux", value: dateWish, inline: true },
                         { name: "⚠️ Points faibles indiqués", value: weaknesses, inline: false }
                     )
                     .setColor("#ff007f")
                     .setTimestamp();
 
+                const safeRank = rank.replace(/[^a-zA-Z0-9]/g, ' ') || "Coaching";
                 const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`accept_${interaction.user.id}_${game.replace(/[^a-zA-Z0-9]/g, ' ')}`).setLabel("Accepter & Fixer l'heure").setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`accept_${interaction.user.id}_${safeRank}`).setLabel("Accepter & Fixer l'heure").setStyle(ButtonStyle.Success),
                     new ButtonBuilder().setCustomId(`deny_${interaction.user.id}`).setLabel("Refuser la demande").setStyle(ButtonStyle.Danger)
                 );
 
@@ -231,13 +229,13 @@ module.exports = async (client) => {
                     const targetUser = await client.users.fetch(userId).catch(() => null);
                     if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée (Fiche incomplète ou manque de disponibilités).").catch(() => null);
                     
-                    await interaction.message.delete();
+                    await interaction.message.delete().catch(() => null);
                     return interaction.reply({ content: "Candidature refusée.", ephemeral: true });
                 }
 
                 if (action === "accept") {
-                    const gameInfo = interaction.customId.split("_")[2] || "Coaching";
-                    const coachModal = new ModalBuilder().setCustomId(`final_plan_${userId}_${gameInfo}`).setTitle("Planification de la séance");
+                    const rankInfo = interaction.customId.split("_")[2] || "Coaching";
+                    const coachModal = new ModalBuilder().setCustomId(`final_plan_${userId}_${rankInfo}`).setTitle("Planification de la séance");
                     coachModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_time").setLabel("Fixer le Jour et l'Heure exacte :").setPlaceholder("Ex: Samedi à 15h30").setStyle(TextInputStyle.Short).setRequired(true)));
                     await interaction.showModal(coachModal);
                 }
@@ -247,18 +245,17 @@ module.exports = async (client) => {
             if (interaction.isModalSubmit() && interaction.customId.startsWith("final_plan_")) {
                 await interaction.deferReply({ ephemeral: true });
                 const userId = interaction.customId.split("_")[2];
-                const gameInfo = interaction.customId.split("_")[3];
+                const rankInfo = interaction.customId.split("_")[3];
                 const time = interaction.fields.getTextInputValue("f_time");
 
                 const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
                 if (!targetMember) return interaction.editReply({ content: "Le joueur a quitté le Discord." });
 
                 coachingData.sessions.push({
-                    userId, coachId: interaction.user.id, time, status: "EN ATTENTE", game: gameInfo
+                    userId, coachId: interaction.user.id, time, status: "EN ATTENTE", game: `Rang: ${rankInfo}`
                 });
                 saveCoachingData();
 
-                // Création du canal privé (Thread rattaché au salon des logs)
                 const thread = await interaction.channel.threads.create({
                     name: `Coaching ─ ${targetMember.user.username}`,
                     type: ChannelType.PrivateThread,
