@@ -12,6 +12,7 @@ const QUOTA_PATH = path.join(__dirname, "../data/coachingQuotas.json");
 
 const ROLE_DISPO = "1522242965823684609";
 const ROLE_INDISPO = "1522243018453684266";
+const AVIS_CHANNEL_ID = "1522244053196865729";
 
 // Chargement initial des configurations
 let config = {};
@@ -20,10 +21,11 @@ if (fs.existsSync(CONFIG_PATH)) {
 }
 
 if (!fs.existsSync(DATA_PATH)) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [], history: [] }, null, 2));
+    fs.writeFileSync(DATA_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [], history: [], coachStats: {} }, null, 2));
 }
 let coachingData = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
 if (!coachingData.history) coachingData.history = [];
+if (!coachingData.coachStats) coachingData.coachStats = [];
 
 const cooldowns = new Map();
 
@@ -81,6 +83,15 @@ async function updateDashboard(client) {
         });
     }
 
+    // Statistiques des coachs
+    if (coachingData.coachStats && Object.keys(coachingData.coachStats).length > 0) {
+        description += "\n---\n### 📊 Performance du Staff (Coachs)\n";
+        for (const [coachId, stat] of Object.entries(coachingData.coachStats)) {
+            const avgRating = stat.totalRatings > 0 ? (stat.ratingSum / stat.totalRatings).toFixed(1) : "N/A";
+            description += `• <@${coachId}> ➔ **${stat.count}** séances terminées | ⭐ **${avgRating}/5**\n`;
+        }
+    }
+
     if (coachingData.history && coachingData.history.length > 0) {
         description += "\n---\n### ✅ Dernières sessions terminées (Historique)\n";
         coachingData.history.slice(-5).reverse().forEach(h => {
@@ -113,7 +124,7 @@ async function updateDashboard(client) {
     }
 }
 
-// --- SYSTÈME DE DÉTECTION VOCALE AUTOMATIQUE ---
+// --- DÉTECTION VOCALE AUTOMATIQUE ---
 function startVoiceChecker(client) {
     setInterval(async () => {
         if (!coachingData.sessions || coachingData.sessions.length === 0) return;
@@ -122,7 +133,7 @@ function startVoiceChecker(client) {
         for (const session of coachingData.sessions) {
             if (session.status === "EN COURS") continue;
 
-            const guild = client.guilds.cache.first(); // Récupère le serveur
+            const guild = client.guilds.cache.first();
             if (!guild) continue;
 
             const coachMember = await guild.members.fetch(session.coachId).catch(() => null);
@@ -134,7 +145,6 @@ function startVoiceChecker(client) {
                 const cId = coachMember.voice.channelId;
                 const uId = userMember.voice.channelId;
 
-                // Si les deux sont dans le même salon de coaching vocal
                 if (cId === uId && (cId === v1 || cId === v2)) {
                     session.status = "EN COURS";
                     change = true;
@@ -146,11 +156,11 @@ function startVoiceChecker(client) {
             saveCoachingData();
             await updateDashboard(client);
         }
-    }, 60000); // Scan toutes les 60 secondes
+    }, 60000);
 }
 
 module.exports = async (client) => {
-    console.log("[🎯 COACHING] Module Dashboard & Grinders initialisé avec succès !");
+    console.log("[🎯 COACHING] Module Élite Initialisé avec succès !");
     startVoiceChecker(client);
 
     client.on("messageCreate", async (message) => {
@@ -171,10 +181,7 @@ module.exports = async (client) => {
                 .setColor("#ff007f");
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId("start_apply")
-                    .setLabel("Demander un Coaching 🎮")
-                    .setStyle(ButtonStyle.Primary)
+                new ButtonBuilder().setCustomId("start_apply").setLabel("Demander un Coaching 🎮").setStyle(ButtonStyle.Primary)
             );
 
             await message.channel.send({ embeds: [embed], components: [row] });
@@ -211,10 +218,10 @@ module.exports = async (client) => {
                 const modal = new ModalBuilder().setCustomId(`modal_coaching_${prValue}`).setTitle("Fiche de Suivi Coaching");
 
                 modal.addComponents(
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_age").setLabel("Ton Âge :").setPlaceholder("Ex: 16 ans").setStyle(TextInputStyle.Short).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_rank").setLabel("Ton Rang actuel :").setPlaceholder("Ex: Unreal / Radiant / Master").setStyle(TextInputStyle.Short).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_weak").setLabel("Points Faibles :").setPlaceholder("Détaille ici tes difficultés (Mécaniques, mental, stress...)").setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_date").setLabel("Tes disponibilités globales :").setPlaceholder("Ex: Le week-end en après-midi").setStyle(TextInputStyle.Short).setRequired(true))
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_age").setLabel("Ton Âge :").setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_rank").setLabel("Ton Rang actuel :").setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_weak").setLabel("Points Faibles :").setStyle(TextInputStyle.Paragraph).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_date").setLabel("Tes disponibilités globales :").setStyle(TextInputStyle.Short).setRequired(true))
                 );
 
                 await interaction.showModal(modal);
@@ -243,13 +250,12 @@ module.exports = async (client) => {
                         { name: "🗓️ Créneaux", value: dateWish, inline: true },
                         { name: "⚠️ Points faibles indiqués", value: weaknesses, inline: false }
                     )
-                    .setColor("#ff007f")
-                    .setTimestamp();
+                    .setColor("#ff007f");
 
                 const safeRank = rank.replace(/[^a-zA-Z0-9]/g, ' ') || "Coaching";
                 const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`accept_${interaction.user.id}_${safeRank}`).setLabel("Accepter & Fixer l'heure").setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId(`deny_${interaction.user.id}`).setLabel("Refuser la demande").setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder().setCustomId(`accept_${interaction.user.id}_${safeRank}`).setLabel("Accepter & Planifier").setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`deny_${interaction.user.id}`).setLabel("Refuser").setStyle(ButtonStyle.Danger)
                 );
 
                 await logChannel.send({ embeds: [embed], components: [row] });
@@ -257,9 +263,7 @@ module.exports = async (client) => {
             }
 
             if (interaction.isButton() && (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_"))) {
-                if (!interaction.member.permissions.has("ManageMessages")) {
-                    return interaction.reply({ content: "❌ Seul le staff ou un coach peut gérer cette demande.", ephemeral: true });
-                }
+                if (!interaction.member.permissions.has("ManageMessages")) return interaction.reply({ content: "❌ Permissions insuffisantes.", ephemeral: true });
 
                 const action = interaction.customId.split("_")[0];
                 const userId = interaction.customId.split("_")[1];
@@ -268,7 +272,6 @@ module.exports = async (client) => {
                     resetQuota(userId);
                     const targetUser = await client.users.fetch(userId).catch(() => null);
                     if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée.").catch(() => null);
-                    
                     await interaction.message.delete().catch(() => null);
                     return interaction.reply({ content: "Candidature refusée.", ephemeral: true });
                 }
@@ -276,7 +279,7 @@ module.exports = async (client) => {
                 if (action === "accept") {
                     const rankInfo = interaction.customId.split("_")[2] || "Coaching";
                     const coachModal = new ModalBuilder().setCustomId(`final_plan_${userId}_${rankInfo}`).setTitle("Planification de la séance");
-                    coachModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_time").setLabel("Fixer le Jour et l'Heure exacte :").setPlaceholder("Ex: Samedi à 15h30").setStyle(TextInputStyle.Short).setRequired(true)));
+                    coachModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_time").setLabel("Fixer le Jour et l'Heure exacte :").setStyle(TextInputStyle.Short).setRequired(true)));
                     await interaction.showModal(coachModal);
                 }
             }
@@ -290,19 +293,15 @@ module.exports = async (client) => {
                 const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
                 if (!targetMember) return interaction.editReply({ content: "Le joueur a quitté le Discord." });
 
-                // Update rôles du Coach (Passe en Indisponible)
                 await interaction.member.roles.remove(ROLE_DISPO).catch(() => null);
                 await interaction.member.roles.add(ROLE_INDISPO).catch(() => null);
 
-                coachingData.sessions.push({
-                    userId, coachId: interaction.user.id, time, status: "EN ATTENTE", game: `Rang: ${rankInfo}`
-                });
+                coachingData.sessions.push({ userId, coachId: interaction.user.id, time, status: "EN ATTENTE", game: `Rang: ${rankInfo}` });
                 saveCoachingData();
 
                 const thread = await interaction.channel.threads.create({
                     name: `Coaching ─ ${targetMember.user.username}`,
                     type: ChannelType.PrivateThread,
-                    reason: "Suivi coaching individuel"
                 }).catch(() => null);
 
                 if (thread) {
@@ -310,20 +309,21 @@ module.exports = async (client) => {
                     await thread.members.add(interaction.user.id).catch(() => null);
 
                     const threadRow = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId(`status_encours_${userId}`).setLabel("Lancer la séance (En cours)").setStyle(ButtonStyle.Primary),
-                        new ButtonBuilder().setCustomId(`status_report_${userId}`).setLabel("Reporter la séance").setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId(`status_fini_${userId}`).setLabel("Terminer (Clôturer)").setStyle(ButtonStyle.Success)
+                        new ButtonBuilder().setCustomId(`status_encours_${userId}`).setLabel("Lancer (En cours)").setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId(`status_report_${userId}`).setLabel("Reporter").setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder().setCustomId(`status_fini_${userId}`).setLabel("Terminer la séance").setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId(`status_cancel_${userId}`).setLabel("Annuler").setStyle(ButtonStyle.Danger)
                     );
 
                     await thread.send({ 
-                        content: `👋 Bienvenue dans votre salon de suivi <@${userId}> et <@${interaction.user.id}> !\n\nLa séance est officiellement planifiée pour le : **${time}**.\n\n_Les coachs disposent de boutons ci-dessous pour piloter le statut en direct sur le planning._`, 
+                        content: `👋 Salon de suivi <@${userId}> et <@${interaction.user.id}> !\n\nSéance planifiée le : **${time}**.\n\n_Pilotez le statut ci-dessous._`, 
                         components: [threadRow] 
                     });
                 }
 
                 await interaction.message.delete().catch(() => null);
                 await updateDashboard(client);
-                await interaction.editReply({ content: "✅ Séance ajoutée au planning et rôles mis à jour !" });
+                await interaction.editReply({ content: "✅ Séance ajoutée au planning !" });
             }
 
             if (interaction.isButton() && interaction.customId.startsWith("status_")) {
@@ -331,36 +331,145 @@ module.exports = async (client) => {
                 const userId = interaction.customId.split("_")[2];
                 const session = coachingData.sessions.find(s => s.userId === userId);
 
-                if (!session) return interaction.reply({ content: "Séance introuvable dans le tableau de bord.", ephemeral: true });
+                if (!session) return interaction.reply({ content: "Séance introuvable.", ephemeral: true });
 
                 if (action === "encours") {
                     session.status = "EN COURS";
                     await interaction.reply({ content: "🟢 La séance est maintenant marquée comme **En cours**." });
+                    saveCoachingData();
+                    await updateDashboard(client);
                 }
                 if (action === "report") {
-                    session.status = "REPORTÉ";
                     const reportModal = new ModalBuilder().setCustomId(`update_time_${userId}`).setTitle("Reporter le rendez-vous");
                     reportModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("new_time").setLabel("Nouvelle date / horaire :").setStyle(TextInputStyle.Short).setRequired(true)));
                     return await interaction.showModal(reportModal);
                 }
-                if (action === "fini") {
-                    session.status = "TERMINÉ";
-                    coachingData.history.push(session); // Ajout à l'historique global
+                if (action === "cancel") {
+                    resetQuota(userId);
                     coachingData.sessions = coachingData.sessions.filter(s => s.userId !== userId);
-                    
-                    // Reset des rôles du Coach (Repasse en Disponible)
                     const coachMember = await interaction.guild.members.fetch(session.coachId).catch(() => null);
                     if (coachMember) {
                         await coachMember.roles.remove(ROLE_INDISPO).catch(() => null);
                         await coachMember.roles.add(ROLE_DISPO).catch(() => null);
                     }
+                    saveCoachingData();
+                    await updateDashboard(client);
+                    await interaction.reply({ content: "❌ Séance annulée. Fermeture du salon..." });
+                    setTimeout(() => interaction.channel.delete().catch(() => null), 5000);
+                }
+                if (action === "fini") {
+                    // Ouverture du compte rendu pour le coach
+                    const summaryModal = new ModalBuilder().setCustomId(`coach_summary_${userId}`).setTitle("Compte-rendu du Coach");
+                    summaryModal.addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("s_text").setLabel("Points travaillés & Axes d'amélioration :").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                    );
+                    await interaction.showModal(summaryModal);
+                }
+            }
 
-                    await interaction.reply({ content: "✅ Séance archivée avec succès. Fermeture du salon dans 10 secondes..." });
-                    setTimeout(() => interaction.channel.delete().catch(() => null), 10000);
+            // Validation du compte rendu du Coach
+            if (interaction.isModalSubmit() && interaction.customId.startsWith("coach_summary_")) {
+                await interaction.deferReply();
+                const userId = interaction.customId.split("_")[2];
+                const summaryText = interaction.fields.getTextInputValue("s_text");
+                const sessionIndex = coachingData.sessions.findIndex(s => s.userId === userId);
+                
+                if (sessionIndex === -1) return interaction.editReply("Erreur : session introuvable.");
+                const session = coachingData.sessions[sessionIndex];
+
+                // Mise à jour des stats du coach
+                if (!coachingData.coachStats[session.coachId]) {
+                    coachingData.coachStats[session.coachId] = { count: 0, ratingSum: 0, totalRatings: 0 };
+                }
+                coachingData.coachStats[session.coachId].count++;
+
+                coachingData.history.push(session);
+                coachingData.sessions.splice(sessionIndex, 1);
+
+                const coachMember = await interaction.guild.members.fetch(session.coachId).catch(() => null);
+                if (coachMember) {
+                    await coachMember.roles.remove(ROLE_INDISPO).catch(() => null);
+                    await coachMember.roles.add(ROLE_DISPO).catch(() => null);
                 }
 
                 saveCoachingData();
                 await updateDashboard(client);
+
+                // Envoi du bilan au joueur en DM
+                const targetUser = await client.users.fetch(userId).catch(() => null);
+                if (targetUser) {
+                    const dmEmbed = new EmbedBuilder()
+                        .setTitle("📝 BILAN DE TON COACHING ─ HOVEX")
+                        .setDescription(`Voici le compte-rendu écrit par ton coach <@${session.coachId}> :\n\n${summaryText}`)
+                        .setColor("#ff007f");
+                    await targetUser.send({ embeds: [dmEmbed] }).catch(() => null);
+                }
+
+                // Génération des boutons d'avis pour le joueur directement dans le fil avant destruction
+                const reviewRow = new ActionRowBuilder().addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId(`rate_${session.coachId}_${userId}`)
+                        .setPlaceholder("⭐ Évalue ton coaching de 1 à 5 étoiles :")
+                        .addOptions([
+                            { label: "⭐⭐⭐⭐⭐ Excellent", value: "5" },
+                            { label: "⭐⭐⭐⭐ Très bon", value: "4" },
+                            { label: "⭐⭐⭐ Correct", value: "3" },
+                            { label: "⭐⭐ Médiocre", value: "2" },
+                            { label: "⭐ Mauvais", value: "1" }
+                        ])
+                );
+
+                await interaction.editReply({ 
+                    content: `✅ Séance clôturée ! <@${userId}>, merci de laisser une note via le menu ci-dessous avant que le salon ne s'autodétruise.`,
+                    components: [reviewRow]
+                });
+            }
+
+            // Gestion de la note (Avis joueur)
+            if (interaction.isStringSelectMenu() && interaction.customId.startsWith("rate_")) {
+                const coachId = interaction.customId.split("_")[1];
+                const userId = interaction.customId.split("_")[2];
+                const rating = parseInt(interaction.values[0]);
+
+                if (interaction.user.id !== userId) return interaction.reply({ content: "❌ Seul le joueur coché peut donner sa note !", ephemeral: true });
+
+                const commentModal = new ModalBuilder().setCustomId(`comment_${coachId}_${rating}`).setTitle("Laisse ton avis écrit");
+                commentModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("r_comment").setLabel("Commentaire sur la séance :").setStyle(TextInputStyle.Paragraph).setRequired(true)));
+                await interaction.showModal(commentModal);
+            }
+
+            // Envoi de l'avis écrit final
+            if (interaction.isModalSubmit() && interaction.customId.startsWith("comment_")) {
+                await interaction.deferReply({ ephemeral: true });
+                const coachId = interaction.customId.split("_")[1];
+                const rating = parseInt(interaction.customId.split("_")[2]);
+                const comment = interaction.fields.getTextInputValue("r_comment");
+
+                if (coachingData.coachStats[coachId]) {
+                    coachingData.coachStats[coachId].ratingSum += rating;
+                    coachingData.coachStats[coachId].totalRatings++;
+                    saveCoachingData();
+                    await updateDashboard(client);
+                }
+
+                const avisChannel = client.channels.cache.get(AVIS_CHANNEL_ID);
+                if (avisChannel) {
+                    const stars = "⭐".repeat(rating);
+                    const avisEmbed = new EmbedBuilder()
+                        .setTitle("⭐ NOUVEL AVIS COACHING ─ TEAM HOVEX")
+                        .addFields(
+                            { name: "👤 Joueur", value: `<@${interaction.user.id}>`, inline: true },
+                            { name: "🎓 Coach", value: `<@${coachId}>`, inline: true },
+                            { name: "📊 Note", value: `**${stars} (${rating}/5)**`, inline: true },
+                            { name: "💬 Commentaire", value: comment, inline: false }
+                        )
+                        .setColor("#ff007f")
+                        .setTimestamp();
+                    await avisChannel.send({ embeds: [avisEmbed] });
+                }
+
+                await interaction.editReply({ content: "Merci pour ton retour d'expérience ! Fermeture définitive du salon..." });
+                setTimeout(() => interaction.channel.delete().catch(() => null), 3000);
             }
 
             if (interaction.isModalSubmit() && interaction.customId.startsWith("update_time_")) {
@@ -379,17 +488,14 @@ module.exports = async (client) => {
 
             if (interaction.isButton() && interaction.customId === "refresh_dashboard") {
                 const lastClick = cooldowns.get(interaction.user.id);
-                if (lastClick && Date.now() - lastClick < 10000) {
-                    return interaction.reply({ content: "⏳ Patiente 10 secondes avant d'actualiser.", ephemeral: true });
-                }
-
+                if (lastClick && Date.now() - lastClick < 10000) return interaction.reply({ content: "⏳ Patiente.", ephemeral: true });
                 cooldowns.set(interaction.user.id, Date.now());
                 await updateDashboard(client);
-                await interaction.reply({ content: "✅ Tableau de bord actualisé !", ephemeral: true });
+                await interaction.reply({ content: "✅ Mis à jour !", ephemeral: true });
             }
 
         } catch (error) {
-            console.error("Erreur interaction Coaching :", error);
+            console.error("Erreur :", error);
         }
     });
 };
