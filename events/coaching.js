@@ -10,6 +10,9 @@ const CONFIG_PATH = path.join(__dirname, "../data/coachingConfig.json");
 const DATA_PATH = path.join(__dirname, "../data/coachingData.json");
 const QUOTA_PATH = path.join(__dirname, "../data/coachingQuotas.json");
 
+const ROLE_DISPO = "1522242965823684609";
+const ROLE_INDISPO = "1522243018453684266";
+
 // Chargement initial des configurations
 let config = {};
 if (fs.existsSync(CONFIG_PATH)) {
@@ -17,9 +20,10 @@ if (fs.existsSync(CONFIG_PATH)) {
 }
 
 if (!fs.existsSync(DATA_PATH)) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [] }, null, 2));
+    fs.writeFileSync(DATA_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [], history: [] }, null, 2));
 }
 let coachingData = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
+if (!coachingData.history) coachingData.history = [];
 
 const cooldowns = new Map();
 
@@ -58,7 +62,7 @@ async function updateDashboard(client) {
         .setTitle("📅 TABLEAU DE BORD DES COACHINGS ─ HOVEX")
         .setColor("#ff007f")
         .setTimestamp()
-        .setFooter({ text: "Système de suivi dynamique • Team HoveX" });
+        .setFooter({ text: "Système automatique d'élite • Team HoveX" });
 
     let description = "### 📋 Liste des séances planifiées\n\n";
 
@@ -69,12 +73,18 @@ async function updateDashboard(client) {
             let statusEmoji = "⏳";
             if (s.status === "EN COURS") statusEmoji = "🟢";
             if (s.status === "REPORTÉ") statusEmoji = "🔁";
-            if (s.status === "TERMINÉ") statusEmoji = "✅";
 
             description += `**${statusEmoji} [${s.status}]**\n` +
                 `└ **Date/Heure :** \`${s.time}\`\n` +
                 `└ **Joueur :** <@${s.userId}> | **Coach :** <@${s.coachId}>\n` +
                 `└ **Détails :** ${s.game}\n\n`;
+        });
+    }
+
+    if (coachingData.history && coachingData.history.length > 0) {
+        description += "\n---\n### ✅ Dernières sessions terminées (Historique)\n";
+        coachingData.history.slice(-5).reverse().forEach(h => {
+            description += `• <@${h.userId}> par <@${h.coachId}> ➔ *${h.game}*\n`;
         });
     }
 
@@ -103,8 +113,45 @@ async function updateDashboard(client) {
     }
 }
 
+// --- SYSTÈME DE DÉTECTION VOCALE AUTOMATIQUE ---
+function startVoiceChecker(client) {
+    setInterval(async () => {
+        if (!coachingData.sessions || coachingData.sessions.length === 0) return;
+        let change = false;
+
+        for (const session of coachingData.sessions) {
+            if (session.status === "EN COURS") continue;
+
+            const guild = client.guilds.cache.first(); // Récupère le serveur
+            if (!guild) continue;
+
+            const coachMember = await guild.members.fetch(session.coachId).catch(() => null);
+            const userMember = await guild.members.fetch(session.userId).catch(() => null);
+
+            if (coachMember && userMember && coachMember.voice.channelId && userMember.voice.channelId) {
+                const v1 = config.VOICE_COACHING_1;
+                const v2 = config.VOICE_COACHING_2;
+                const cId = coachMember.voice.channelId;
+                const uId = userMember.voice.channelId;
+
+                // Si les deux sont dans le même salon de coaching vocal
+                if (cId === uId && (cId === v1 || cId === v2)) {
+                    session.status = "EN COURS";
+                    change = true;
+                }
+            }
+        }
+
+        if (change) {
+            saveCoachingData();
+            await updateDashboard(client);
+        }
+    }, 60000); // Scan toutes les 60 secondes
+}
+
 module.exports = async (client) => {
     console.log("[🎯 COACHING] Module Dashboard & Grinders initialisé avec succès !");
+    startVoiceChecker(client);
 
     client.on("messageCreate", async (message) => {
         if (message.author.bot || !message.member.permissions.has("Administrator")) return;
@@ -136,7 +183,6 @@ module.exports = async (client) => {
 
     client.on("interactionCreate", async (interaction) => {
         try {
-            // 1. Clic sur le bouton de départ
             if (interaction.isButton() && interaction.customId === "start_apply") {
                 if (!checkQuota(interaction.user.id)) {
                     return interaction.reply({ content: "❌ Tu as déjà demandé ou effectué un coaching ce mois-ci.", ephemeral: true });
@@ -160,13 +206,9 @@ module.exports = async (client) => {
                 });
             }
 
-            // 2. Sélection du menu déroulant -> Ouverture du Modal
             if (interaction.isStringSelectMenu() && interaction.customId === "select_pr") {
                 const prValue = interaction.values[0];
-                
-                const modal = new ModalBuilder()
-                    .setCustomId(`modal_coaching_${prValue}`)
-                    .setTitle("Fiche de Suivi Coaching");
+                const modal = new ModalBuilder().setCustomId(`modal_coaching_${prValue}`).setTitle("Fiche de Suivi Coaching");
 
                 modal.addComponents(
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("c_age").setLabel("Ton Âge :").setPlaceholder("Ex: 16 ans").setStyle(TextInputStyle.Short).setRequired(true)),
@@ -178,7 +220,6 @@ module.exports = async (client) => {
                 await interaction.showModal(modal);
             }
 
-            // 3. Traitement de la fiche envoyée
             if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_coaching_")) {
                 await interaction.deferReply({ ephemeral: true });
                 const prValue = interaction.customId.split("_")[2];
@@ -215,7 +256,6 @@ module.exports = async (client) => {
                 await interaction.editReply({ content: "✅ Ta fiche de grinder a bien été transmise au pôle coaching !" });
             }
 
-            // 4. Actions des Coachs (Accepter / Refuser)
             if (interaction.isButton() && (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_"))) {
                 if (!interaction.member.permissions.has("ManageMessages")) {
                     return interaction.reply({ content: "❌ Seul le staff ou un coach peut gérer cette demande.", ephemeral: true });
@@ -227,7 +267,7 @@ module.exports = async (client) => {
                 if (action === "deny") {
                     resetQuota(userId);
                     const targetUser = await client.users.fetch(userId).catch(() => null);
-                    if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée (Fiche incomplète ou manque de disponibilités).").catch(() => null);
+                    if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée.").catch(() => null);
                     
                     await interaction.message.delete().catch(() => null);
                     return interaction.reply({ content: "Candidature refusée.", ephemeral: true });
@@ -241,7 +281,6 @@ module.exports = async (client) => {
                 }
             }
 
-            // 5. Validation finale de la date et création du fil
             if (interaction.isModalSubmit() && interaction.customId.startsWith("final_plan_")) {
                 await interaction.deferReply({ ephemeral: true });
                 const userId = interaction.customId.split("_")[2];
@@ -250,6 +289,10 @@ module.exports = async (client) => {
 
                 const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
                 if (!targetMember) return interaction.editReply({ content: "Le joueur a quitté le Discord." });
+
+                // Update rôles du Coach (Passe en Indisponible)
+                await interaction.member.roles.remove(ROLE_DISPO).catch(() => null);
+                await interaction.member.roles.add(ROLE_INDISPO).catch(() => null);
 
                 coachingData.sessions.push({
                     userId, coachId: interaction.user.id, time, status: "EN ATTENTE", game: `Rang: ${rankInfo}`
@@ -280,10 +323,9 @@ module.exports = async (client) => {
 
                 await interaction.message.delete().catch(() => null);
                 await updateDashboard(client);
-                await interaction.editReply({ content: "✅ Séance ajoutée au planning et fil créé !" });
+                await interaction.editReply({ content: "✅ Séance ajoutée au planning et rôles mis à jour !" });
             }
 
-            // 6. Gestion des boutons de statuts dans le fil de discussion
             if (interaction.isButton() && interaction.customId.startsWith("status_")) {
                 const action = interaction.customId.split("_")[1];
                 const userId = interaction.customId.split("_")[2];
@@ -303,8 +345,17 @@ module.exports = async (client) => {
                 }
                 if (action === "fini") {
                     session.status = "TERMINÉ";
+                    coachingData.history.push(session); // Ajout à l'historique global
                     coachingData.sessions = coachingData.sessions.filter(s => s.userId !== userId);
-                    await interaction.reply({ content: "✅ Séance validée et terminée. Fermeture du salon dans 10 secondes..." });
+                    
+                    // Reset des rôles du Coach (Repasse en Disponible)
+                    const coachMember = await interaction.guild.members.fetch(session.coachId).catch(() => null);
+                    if (coachMember) {
+                        await coachMember.roles.remove(ROLE_INDISPO).catch(() => null);
+                        await coachMember.roles.add(ROLE_DISPO).catch(() => null);
+                    }
+
+                    await interaction.reply({ content: "✅ Séance archivée avec succès. Fermeture du salon dans 10 secondes..." });
                     setTimeout(() => interaction.channel.delete().catch(() => null), 10000);
                 }
 
@@ -312,7 +363,6 @@ module.exports = async (client) => {
                 await updateDashboard(client);
             }
 
-            // Report de date (Modal de mise à jour)
             if (interaction.isModalSubmit() && interaction.customId.startsWith("update_time_")) {
                 const userId = interaction.customId.split("_")[2];
                 const newTime = interaction.fields.getTextInputValue("new_time");
@@ -323,20 +373,19 @@ module.exports = async (client) => {
                     session.status = "REPORTÉ";
                     saveCoachingData();
                     await updateDashboard(client);
-                    await interaction.reply({ content: `🔁 Séance reportée avec succès au **${newTime}**.` });
+                    await interaction.reply({ content: `🔁 Séance reportée au **${newTime}**.` });
                 }
             }
 
-            // 7. Bouton d'actualisation manuelle du Dashboard (Cooldown 10s)
             if (interaction.isButton() && interaction.customId === "refresh_dashboard") {
                 const lastClick = cooldowns.get(interaction.user.id);
                 if (lastClick && Date.now() - lastClick < 10000) {
-                    return interaction.reply({ content: "⏳ Patiente 10 secondes avant de rafraîchir à nouveau le planning.", ephemeral: true });
+                    return interaction.reply({ content: "⏳ Patiente 10 secondes avant d'actualiser.", ephemeral: true });
                 }
 
                 cooldowns.set(interaction.user.id, Date.now());
                 await updateDashboard(client);
-                await interaction.reply({ content: "✅ Le tableau de bord a été actualisé avec succès !", ephemeral: true });
+                await interaction.reply({ content: "✅ Tableau de bord actualisé !", ephemeral: true });
             }
 
         } catch (error) {
