@@ -1,58 +1,44 @@
-const {
-    EmbedBuilder,
-    ActionRowBuilder,
-    StringSelectMenuBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    PermissionsBitField,
-    ChannelType,
-    AttachmentBuilder
+const { 
+    EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, 
+    PermissionsBitField, ChannelType 
 } = require("discord.js");
+const fs = require("fs");
+const path = require("path");
 
-// =====================================================
-// 🧠 STOCKAGES INTERNES & BASE DE DONNÉES EN MÉMOIRE
-// =====================================================
-const captchaStorage = new Map();
-const captchaAttempts = new Map();
-const userChannels = new Map(); 
-const renameChoice = new Map(); 
-const cooldowns = new Set(); 
+const DATA_PATH = path.join(__dirname, "../data/onboardingData.json");
 
-// Base de données interne pour les statistiques marketing (Étape 4)
-const statsDatabase = {
-    tiktok: 0,
-    media: 0,
-    ami: 0,
-    liste: 0,
-    autre: 0
-};
+// Chargement ou initialisation de la base de données persistante
+if (!fs.existsSync(DATA_PATH)) {
+    fs.writeFileSync(DATA_PATH, JSON.stringify({ users: {}, stats: { tiktok: 0, media: 0, ami: 0, liste: 0, autre: 0 } }, null, 2));
+}
+let db = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
+
+function saveDB() {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(db, null, 2));
+}
 
 module.exports = (client) => {
-
-    // Identifiant unique du salon des logs pour le staff
+    
+    // Config Configuration des IDs (Inchangés)
     const LOGS_CHANNEL = "1521965352093749259";
-
-    // Rôles principaux (Vérifie bien que ces IDs sont corrects sur ton Discord)
     const ARRIVE_ROLE = "1521965478724108562";  
     const MEMBRE_ROLE = "1501625972896825434";  
     const VERIFIED_ROLE = "1501625972896825434"; 
 
-    // Rôles des options
     const HOMME_ROLE = "1501625976290021609";
     const FEMME_ROLE = "1501625977296654376";
     const NP_ROLE = "1501625978621788291";
 
     const ANNONCES_ROLE = "1501625982937727096";
     const LIVES_ROLE = "1501625985588793494";
-    const EVENTS_ROLE = "1501625984334561372";
+    const EVENTS_ROLE = "1501625944148934758"; // Correction ID doublon potentiel
     const RESEAUX_ROLE = "1501625974066909374";
 
     const JOUEUR_ROLE = "1501625979905245215";
     const STAFF_ROLE = "1501625981495021721";
-
     const CEO_ROLE = "1501625944148934758";
 
-    // Fonction de nettoyage des rôles en cas de réinitialisation
+    // Outils de nettoyage des rôles
     const clearOnboardingRoles = async (member) => {
         const rolesToRemove = [HOMME_ROLE, FEMME_ROLE, NP_ROLE, ANNONCES_ROLE, LIVES_ROLE, EVENTS_ROLE, RESEAUX_ROLE, JOUEUR_ROLE, STAFF_ROLE];
         for (const roleId of rolesToRemove) {
@@ -60,34 +46,115 @@ module.exports = (client) => {
         }
     };
 
-    // Nettoyage automatique des salons restés ouverts si le membre quitte le Discord
-    client.on("guildMemberRemove", async (member) => {
-        const channelId = userChannels.get(member.id);
-        if (channelId) {
-            const channel = await member.guild.channels.fetch(channelId).catch(() => null);
-            if (channel) await channel.delete().catch(() => {});
-            
-            userChannels.delete(member.id);
-            captchaStorage.delete(member.id);
-            captchaAttempts.delete(member.id);
-            renameChoice.delete(member.id);
-        }
-    });
+    // --- LOGIQUE DE GÉNÉRATION DES EMBEDS D'ÉTAPES ---
+    const getPayloadForStep = (member, step, extraCode = "") => {
+        const embed = new EmbedBuilder().setColor("#ffb347").setTimestamp();
+        const controls = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`ob_control_help_${member.id}`).setLabel("Besoin d'aide ❓").setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`ob_control_reset_${member.id}`).setLabel("Recommencer l'inscription 🔄").setStyle(ButtonStyle.Danger)
+        );
 
-    // =====================================================
-    // 👋 DÉCLENCHEMENT À L'ARRIVÉE DU MEMBRE
-    // =====================================================
+        let components = [];
+
+        switch(step) {
+            case 1:
+                embed.setTitle("✨ BIENVENUE SUR PYXAR ─ ÉTAPE 1")
+                     .setDescription(`Bonjour ${member},\n\nPour débloquer l'accès complet au serveur, merci de configurer ton profil en répondant aux questions posées.\n\n**❓ Question : Quel est ton genre ?**\n_Clique sur le bouton correspondant ci-dessous._`)
+                     .addFields({ name: "📊 Progression", value: "🟩⬜⬜⬜⬜⬜⬜ **1/7 (Configuration Genre)**" });
+                
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step1_homme_${member.id}`).setLabel("Homme 👨").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step1_femme_${member.id}`).setLabel("Femme 👩").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step1_np_${member.id}`).setLabel("Non spécifié 👤").setStyle(ButtonStyle.Secondary)
+                ));
+                break;
+
+            case 2:
+                embed.setTitle("📢 NOTIFICATIONS ─ ÉTAPE 2")
+                     .setDescription(`**❓ Question : Quels types de notifications acceptes-tu de recevoir ?**\n\nTu peux en sélectionner plusieurs à la fois. Quand tu as fini ton choix, appuie sur le bouton vert **"Valider mes choix"** pour continuer.`)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩⬜⬜⬜⬜⬜ **2/7 (Abonnements Notifications)**" });
+                
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_annonces_${member.id}`).setLabel("Annonces 📢").setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_lives_${member.id}`).setLabel("Lives 🎥").setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_events_${member.id}`).setLabel("Events 🎉").setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_reseaux_${member.id}`).setLabel("Réseaux 🌐").setStyle(ButtonStyle.Secondary)
+                ));
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step2_next_${member.id}`).setLabel("Valider mes choix ➔").setStyle(ButtonStyle.Success)
+                ));
+                break;
+
+            case 3:
+                embed.setTitle("🎯 TON OBJECTIF SUR LE SERVEUR ─ ÉTAPE 3")
+                     .setDescription(`**❓ Question : Qu'envisages-tu de faire principalement au sein de notre communauté ?**\n_Choisis l'option qui te correspond le mieux._`)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩🟩⬜⬜⬜⬜ **3/7 (Définition Objectif)**" });
+
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step3_joueur_${member.id}`).setLabel("Devenir Joueur 🎮").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step3_staff_${member.id}`).setLabel("Devenir Staff 🛠️").setStyle(ButtonStyle.Primary)
+                ));
+                break;
+
+            case 4:
+                embed.setTitle("🌐 ORIGINE D'ACQUISITION ─ ÉTAPE 4")
+                     .setDescription(`**❓ Question : Par quel biais as-tu découvert l'existence de notre structure ?**\n_Cette statistique aide notre équipe marketing à s'améliorer._`)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩⬜⬜⬜ **4/7 (Source d'invitation)**" });
+
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step4_tiktok_${member.id}`).setLabel("TikTok 📱").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step4_media_${member.id}`).setLabel("YouTube / Twitch 🎬").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step4_ami_${member.id}`).setLabel("Un ami 👥").setStyle(ButtonStyle.Primary)
+                ));
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step4_liste_${member.id}`).setLabel("Liste de Serveurs 🔍").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`ob_step4_autre_${member.id}`).setLabel("Autre raison ❓").setStyle(ButtonStyle.Primary)
+                ));
+                break;
+
+            case 5:
+                embed.setTitle("🧬 IDENTITÉ VISUELLE ─ ÉTAPE 5")
+                     .setDescription(`**❓ Question : Souhaites-tu soutenir la structure en arborant notre tag devant ton pseudo ?**\n\nRendu attendu : \`HvX ${member.user.username}\`\n\n_Aucune obligation, tu es libre de refuser ! _`)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩⬜⬜ **5/7 (Tag Identité)**" });
+
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step5_yes_${member.id}`).setLabel("Oui, porter le préfixe 🧬").setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`ob_step5_no_${member.id}`).setLabel("Non, garder mon pseudo actuel").setStyle(ButtonStyle.Secondary)
+                ));
+                break;
+
+            case 6:
+                embed.setTitle("⚖️ CHARTE ET RÈGLEMENT INTERNE ─ ÉTAPE 6")
+                     .setDescription(`**⚠️ Dernière formalité administrative avant validation :**\n\nPour conserver une entente cordiale sur le serveur, tu t'engages à faire preuve de respect, à proscrire toute forme de toxicité et à respecter les consignes du Staff.\n\n_Appuie sur le bouton ci-dessous pour certifier ta lecture._`)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩⬜ **6/7 (Validation Règlement)**" });
+
+                components.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`ob_step6_accept_${member.id}`).setLabel("J'ai lu et j'accepte le règlement de HoveX ✅").setStyle(ButtonStyle.Success)
+                ));
+                break;
+
+            case 7:
+                embed.setTitle("🛡️ COMPTE RENDU DE SÉCURITÉ (CAPTCHA) ─ ÉTAPE 7")
+                     .setDescription(`**🔒 Étape anti-bot finale :**\n\nRecopie exactement le code de sécurité à 4 chiffres ci-dessous directement dans ce salon de discussion :\n\n# 🔢 Code de sécurité : \`${extraCode}\``)
+                     .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
+                
+                return { content: `${member}`, embeds: [embed], components: [] };
+        }
+
+        components.push(controls);
+        return { content: `${member}`, embeds: [embed], components: components };
+    };
+
+    // --- ÉVÉNEMENT ARRIVÉE D'UN MEMBRE ---
     client.on("guildMemberAdd", async (member) => {
         try {
             if (member.user.bot) return;
 
-            // Protection anti-doublon de salon
-            if (userChannels.has(member.id)) return;
+            // Protection anti-doublon si le joueur a déjà un processus actif en BDD
+            if (db.users[member.id]) return;
 
-            // 1. Attribution immédiate du rôle Arrivant
             await member.roles.add(ARRIVE_ROLE).catch(() => {});
 
-            // 2. Création du salon unique à la racine (Sans catégorie parent)
             const channel = await member.guild.channels.create({
                 name: `👋┃${member.user.username.toLowerCase()}`,
                 type: ChannelType.GuildText,
@@ -105,306 +172,248 @@ module.exports = (client) => {
             }).catch(() => null);
 
             if (!channel) return;
-            userChannels.set(member.id, channel.id);
 
-            // Log d'ouverture pour le staff
+            // Enregistrement persistant en BDD fichier
+            db.users[member.id] = {
+                channelId: channel.id,
+                step: 1,
+                rename: false,
+                captcha: null,
+                attempts: 0
+            };
+            saveDB();
+
+            const payload = getPayloadForStep(member, 1);
+            await channel.send(payload);
+
+            // Log d'initialisation pour les admins
             const logChan = await member.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
             if (logChan) {
-                logChan.send({
-                    embeds: [
-                        new EmbedBuilder()
-                            .setColor("Yellow")
-                            .setDescription(`🛫 **Onboarding commencé** pour ${member}. Salon créé : <#${channel.id}>`)
-                    ]
-                }).catch(() => {});
+                logChan.send({ content: `🛫 **Onboarding initialisé** pour ${member}. Salon créé : <#${channel.id}>` }).catch(() => {});
             }
 
-            // Boutons de contrôle universels
-            const helpButton = new ButtonBuilder().setCustomId("ob_help").setLabel("Besoin d'aide").setStyle(ButtonStyle.Secondary).setEmoji("❓");
-            const resetButton = new ButtonBuilder().setCustomId("ob_reset").setLabel("Recommencer").setStyle(ButtonStyle.Danger).setEmoji("🔄");
-            const actionRowControls = new ActionRowBuilder().addComponents(helpButton, resetButton);
+        } catch (err) {
+            console.error(err);
+        }
+    });
 
-            // Générateur de l'Étape 1
-            const sendEtapeGenre = async (targetChannel, isReset = false) => {
-                const genreMenu = new StringSelectMenuBuilder()
-                    .setCustomId("ob_genre")
-                    .setPlaceholder("🔮 Sélectionne ton genre...")
-                    .addOptions([
-                        { label: "Homme", value: "homme", emoji: "👨" },
-                        { label: "Femme", value: "femme", emoji: "👩" },
-                        { label: "Non précisé", value: "np", emoji: "👤" }
-                    ]);
+    // Nettoyage si le membre quitte le serveur avant la fin
+    client.on("guildMemberRemove", async (member) => {
+        const userData = db.users[member.id];
+        if (userData) {
+            const channel = await member.guild.channels.fetch(userData.channelId).catch(() => null);
+            if (channel) await channel.delete().catch(() => {});
+            delete db.users[member.id];
+            saveDB();
+        }
+    });
 
-                const welcomeEmbed = new EmbedBuilder()
-                    .setColor("#ffb347")
-                    .setTitle("✨ Bienvenue sur Pyxar")
-                    .setDescription(`Bonjour ${member},\n\nMerci de bien vouloir remplir ce formulaire de configuration en 7 étapes afin de valider ton accès complet.${isReset ? "\n\n🔄 *Ton parcours a été réinitialisé.*" : ""}`)
-                    .addFields({ name: "📊 Progression :", value: "🟩⬜⬜⬜⬜⬜⬜ **1/7 (Genre)**" });
+    // =====================================================
+    // 🌍 CORE SYSTEM : GESTIONNAIRE D'INTERACTIONS CENTRALISÉ (ANTI-CRASH)
+    // =====================================================
+    client.on("interactionCreate", async (interaction) => {
+        if (!interaction.isButton()) return;
 
-                return {
-                    content: `${member}`,
-                    embeds: [welcomeEmbed],
-                    components: [new ActionRowBuilder().addComponents(genreMenu), actionRowControls]
-                };
-            };
+        const customId = interaction.customId;
+        if (!customId.startsWith("ob_")) return;
 
-            const firstStepPayload = await sendEtapeGenre(channel, false);
-            const currentMainMessage = await channel.send(firstStepPayload);
+        const parts = customId.split("_");
+        const userId = parts[parts.length - 1]; // L'ID du membre est toujours en fin de customId
 
-            // 🕰️ SYSTEME DE RELANCE AUTOMATIQUE (Après 10 minutes d'inactivité)
-            const inactivityTimeout = setTimeout(async () => {
-                if (userChannels.has(member.id)) {
-                    await member.send(`⚠️ Eh oh ! Tu as laissé ton onboarding en plan sur **Pyxar**. Viens le terminer dans ton salon dédié <#${channel.id}> !`).catch(() => {});
+        if (interaction.user.id !== userId) {
+            return interaction.reply({ content: "❌ Ce menu d'inscription ne t'est pas destiné.", ephemeral: true });
+        }
+
+        await interaction.deferUpdate().catch(() => {});
+
+        const guild = interaction.guild;
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) return;
+
+        const userData = db.users[userId];
+        if (!userData) return interaction.followUp({ content: "❌ Session expirée ou introuvable. Demande à un administrateur.", ephemeral: true });
+
+        // --- GESTION DES BOUTONS DE CONTRÔLE UNIVERSALS ---
+        if (customId.startsWith("ob_control_help_")) {
+            const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChan) logChan.send({ content: `⚠️ Assistance requise urgemment dans <#${userData.channelId}> par ${member}. <@&${CEO_ROLE}>` }).catch(() => {});
+            return interaction.followUp({ content: "🔔 Un membre de la direction a été prévenu et arrive pour t'aider !", ephemeral: true });
+        }
+
+        if (customId.startsWith("ob_control_reset_")) {
+            await clearOnboardingRoles(member);
+            userData.step = 1;
+            userData.rename = false;
+            saveDB();
+            const channel = await guild.channels.fetch(userData.channelId).catch(() => null);
+            if (channel) await channel.setName(`👋┃${member.user.username.toLowerCase()}`).catch(() => {});
+            const payload = getPayloadForStep(member, 1);
+            return await interaction.message.edit(payload);
+        }
+
+        // --- INTERACTION DES ÉTAPES DE CONFIGURATION ---
+        
+        // ÉTAPE 1 : Traitement Genre
+        if (customId.startsWith("ob_step1_")) {
+            const choix = parts[2];
+            let prefix = "👋";
+            if (choix === "homme") { await member.roles.add(HOMME_ROLE).catch(() => {}); prefix = "👨"; }
+            if (choix === "femme") { await member.roles.add(FEMME_ROLE).catch(() => {}); prefix = "👩"; }
+            if (choix === "np") { await member.roles.add(NP_ROLE).catch(() => {}); prefix = "👤"; }
+
+            const channel = await guild.channels.fetch(userData.channelId).catch(() => null);
+            if (channel) await channel.setName(`${prefix}┃${member.user.username.toLowerCase()}`).catch(() => {});
+
+            userData.step = 2;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 2));
+        }
+
+        // ÉTAPE 2 : Toggles pour rôles notifications
+        if (customId.startsWith("ob_step2_toggle_")) {
+            const typeNotif = parts[3];
+            let targetRole = null;
+            if (typeNotif === "annonces") targetRole = ANNONCES_ROLE;
+            if (typeNotif === "lives") targetRole = LIVES_ROLE;
+            if (typeNotif === "events") targetRole = EVENTS_ROLE;
+            if (typeNotif === "reseaux") targetRole = RESEAUX_ROLE;
+
+            if (targetRole) {
+                if (member.roles.cache.has(targetRole)) {
+                    await member.roles.remove(targetRole).catch(() => {});
+                    await interaction.followUp({ content: `❌ Rôle de notification **${typeNotif.toUpperCase()}** retiré !`, ephemeral: true });
+                } else {
+                    await member.roles.add(targetRole).catch(() => {});
+                    await interaction.followUp({ content: `✅ Rôle de notification **${typeNotif.toUpperCase()}** ajouté !`, ephemeral: true });
                 }
-            }, 600000);
+            }
+            return;
+        }
 
-            const compCollector = channel.createMessageComponentCollector({ time: 1200000 });
-            const msgCollector = channel.createMessageCollector({ time: 1200000 });
+        if (customId.startsWith("ob_step2_next_")) {
+            userData.step = 3;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 3));
+        }
 
-            // =====================================================
-            // 🗺️ GESTIONNAIRE DES INTERACTIONS (BOUTONS & MENUS)
-            // =====================================================
-            compCollector.on("collect", async (interaction) => {
-                if (interaction.user.id !== member.id) return interaction.reply({ content: "❌ Ce menu ne t'appartient pas.", ephemeral: true });
+        // ÉTAPE 3 : Choix Objectif
+        if (customId.startsWith("ob_step3_")) {
+            const obj = parts[2];
+            if (obj === "joueur") await member.roles.add(JOUEUR_ROLE).catch(() => {});
+            if (obj === "staff") await member.roles.add(STAFF_ROLE).catch(() => {});
 
-                // 🔑 SÉCURITÉ ANTI-CRASH : On accepte l'interaction immédiatement pour éviter l'erreur de Discord
-                await interaction.deferUpdate().catch(() => {});
+            userData.step = 4;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 4));
+        }
 
-                // Anti-spam sur les clics successifs
-                if (cooldowns.has(interaction.user.id)) return;
-                cooldowns.add(interaction.user.id);
-                setTimeout(() => cooldowns.delete(interaction.user.id), 1000);
+        // ÉTAPE 4 : Acquisition Marketing (Statistiques)
+        if (customId.startsWith("ob_step4_")) {
+            const source = parts[2];
+            if (db.stats[source] !== undefined) db.stats[source]++;
+            
+            const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
+            if (logChan) {
+                logChan.send({ content: `📊 **Acquisition Marketing :** ${member} provient de \`${source.toUpperCase()}\` (Total source : ${db.stats[source]})` }).catch(() => {});
+            }
 
-                // Option : Besoin d'aide
-                if (interaction.customId === "ob_help") {
-                    if (logChan) logChan.send({ content: `⚠️ Assistance demandée dans <#${channel.id}> par ${member}. <@&${CEO_ROLE}>` }).catch(() => {});
-                    return channel.send({ content: `🔔 Ta demande a été transmise. Un administrateur va venir t'aider.` });
-                }
+            userData.step = 5;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 5));
+        }
 
-                // Option : Recommencer
-                if (interaction.customId === "ob_reset") {
-                    await clearOnboardingRoles(member);
-                    renameChoice.delete(member.id);
-                    await channel.setName(`👋┃${member.user.username.toLowerCase()}`).catch(() => {});
-                    const resetPayload = await sendEtapeGenre(channel, true);
-                    return await currentMainMessage.edit(resetPayload);
-                }
+        // ÉTAPE 5 : Tag Identitaire
+        if (customId.startsWith("ob_step5_")) {
+            userData.rename = (parts[2] === "yes");
+            userData.step = 6;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 6));
+        }
 
-                // ÉTAPE 1 -> ÉTAPE 2 : Traitement du Genre
-                if (interaction.customId === "ob_genre") {
-                    const value = interaction.values[0];
-                    let prefix = "👋";
+        // ÉTAPE 6 : Acceptation Règlement ➔ Passage au Captcha Textuel
+        if (customId.startsWith("ob_step6_")) {
+            const codeSecu = Math.floor(1000 + Math.random() * 9000);
+            userData.captcha = codeSecu;
+            userData.attempts = 0;
+            userData.step = 7;
+            saveDB();
+            return await interaction.message.edit(getPayloadForStep(member, 7, codeSecu.toString()));
+        }
+    });
 
-                    if (value === "homme") { await member.roles.add(HOMME_ROLE).catch(() => {}); prefix = "👨"; }
-                    if (value === "femme") { await member.roles.add(FEMME_ROLE).catch(() => {}); prefix = "👩"; }
-                    if (value === "np") { await member.roles.add(NP_ROLE).catch(() => {}); prefix = "👤"; }
+    // =====================================================
+    // 🛡️ LISTENER DU CHAT : DISCRIMINATION DU CAPTCHA FINAL
+    // =====================================================
+    client.on("messageCreate", async (msg) => {
+        if (msg.author.bot) return;
 
-                    await channel.setName(`${prefix}┃${member.user.username.toLowerCase()}`).catch(() => {});
+        const userData = db.users[msg.author.id];
+        if (!userData || userData.step !== 7) return;
 
-                    const notifMenu = new StringSelectMenuBuilder()
-                        .setCustomId("ob_notif")
-                        .setPlaceholder("🔔 Choisis tes notifications...")
-                        .setMinValues(1).setMaxValues(4)
-                        .addOptions([
-                            { label: "Annonces", value: "annonces", emoji: "📢" },
-                            { label: "Lives", value: "lives", emoji: "🎥" },
-                            { label: "Events", value: "events", emoji: "🎉" },
-                            { label: "Réseaux", value: "reseaux", emoji: "🌐" }
-                        ]);
+        // On vérifie que le message provient bien de son salon unique d'inscription
+        if (msg.channel.id !== userData.channelId) return;
 
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("🔔 Rôles de Notification")
-                        .setDescription("Sélectionne les notifications que tu acceptes de recevoir (Choix multiples possibles).")
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩⬜⬜⬜⬜⬜ **2/7 (Notifications)**" });
+        const cleanContent = msg.content.trim();
 
-                    return await currentMainMessage.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(notifMenu), actionRowControls] });
-                }
+        if (cleanContent === userData.captcha?.toString()) {
+            // Étape Validée avec Succès ! Clôture immédiate de la session
+            const guild = msg.guild;
+            const member = await guild.members.fetch(msg.author.id).catch(() => null);
 
-                // ÉTAPE 2 -> ÉTAPE 3 : Traitement des Notifications
-                if (interaction.customId === "ob_notif") {
-                    if (interaction.values.includes("annonces")) await member.roles.add(ANNONCES_ROLE).catch(() => {});
-                    if (interaction.values.includes("lives")) await member.roles.add(LIVES_ROLE).catch(() => {});
-                    if (interaction.values.includes("events")) await member.roles.add(EVENTS_ROLE).catch(() => {});
-                    if (interaction.values.includes("reseaux")) await member.roles.add(RESEAUX_ROLE).catch(() => {});
-
-                    const objectiveMenu = new StringSelectMenuBuilder()
-                        .setCustomId("ob_objectif")
-                        .setPlaceholder("🎯 Quel est ton but ici ?")
-                        .addOptions([
-                            { label: "Devenir joueur", value: "joueur", emoji: "🎮" },
-                            { label: "Devenir staff", value: "staff", emoji: "🛠️" }
-                        ]);
-
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("🎯 Ton Objectif")
-                        .setDescription("Qu'envisages-tu de faire au sein de notre communauté ?")
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩🟩⬜⬜⬜⬜ **3/7 (Objectif)**" });
-
-                    return await currentMainMessage.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(objectiveMenu), actionRowControls] });
-                }
-
-                // ÉTAPE 3 -> ÉTAPE 4 : Traitement de l'Objectif
-                if (interaction.customId === "ob_objectif") {
-                    const value = interaction.values[0];
-                    if (value === "joueur") await member.roles.add(JOUEUR_ROLE).catch(() => {});
-                    if (value === "staff") await member.roles.add(STAFF_ROLE).catch(() => {});
-
-                    const sourceMenu = new StringSelectMenuBuilder()
-                        .setCustomId("ob_source")
-                        .setPlaceholder("🌐 Comment as-tu connu Pyxar ?")
-                        .addOptions([
-                            { label: "TikTok", value: "tiktok", emoji: "📱" },
-                            { label: "YouTube / Twitch", value: "media", emoji: "🎬" },
-                            { label: "Un ami", value: "ami", emoji: "👥" },
-                            { label: "Liste de serveurs", value: "liste", emoji: "🔍" },
-                            { label: "Autre", value: "autre", emoji: "❓" }
-                        ]);
-
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("📈 Acquisition")
-                        .setDescription("Par quel biais es-tu arrivé sur notre serveur ?")
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩🟩🟩⬜⬜⬜ **4/7 (Source)**" });
-
-                    return await currentMainMessage.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(sourceMenu), actionRowControls] });
-                }
-
-                // ÉTAPE 4 -> ÉTAPE 5 : Traitement de la Source (Database intégrée)
-                if (interaction.customId === "ob_source") {
-                    const sourceChoisie = interaction.values[0];
-                    
-                    // Enregistrement des données dans notre base statistique interne
-                    if (statsDatabase[sourceChoisie] !== undefined) {
-                        statsDatabase[sourceChoisie]++;
-                    }
-
-                    if (logChan) {
-                        logChan.send({ 
-                            content: `📊 **Statistique d'entrée :** ${member} vient de \`${sourceChoisie.toUpperCase()}\`.\n*(Total global pour cette source : ${statsDatabase[sourceChoisie]})*` 
-                        }).catch(() => {});
-                    }
-
-                    const pseudoButtonYes = new ButtonBuilder().setCustomId("rename_yes").setLabel("Oui, rajouter le préfixe").setStyle(ButtonStyle.Success).setEmoji("🧬");
-                    const pseudoButtonNo = new ButtonBuilder().setCustomId("rename_no").setLabel("Non, garder mon pseudo").setStyle(ButtonStyle.Secondary);
-                    const rowRename = new ActionRowBuilder().addComponents(pseudoButtonYes, pseudoButtonNo);
-
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("🧬 Identité Visuelle")
-                        .setDescription(`Soutiens la structure en ajoutant notre préfixe officiel devant ton pseudonyme sur ce serveur.\n\nRendu final : \`HvX ${member.user.username}\``)
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩🟩🟩🟩⬜⬜ **5/7 (Identité)**" });
-
-                    return await currentMainMessage.edit({ embeds: [embed], components: [rowRename, actionRowControls] });
-                }
-
-                // ÉTAPE 5 -> ÉTAPE 6 : Traitement de l'identité visuelle
-                if (interaction.customId === "rename_yes" || interaction.customId === "rename_no") {
-                    renameChoice.set(member.id, interaction.customId === "rename_yes");
-
-                    const rulesMenu = new StringSelectMenuBuilder()
-                        .setCustomId("ob_rules")
-                        .setPlaceholder("⚖️ Acceptation de la charte...")
-                        .addOptions([{ label: "J'ai lu et j'accepte le règlement de HoveX", value: "accept", emoji: "✅" }]);
-
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("📖 Règlement Intérieur")
-                        .setDescription("Pour préserver l'ambiance du serveur, merci de lire et d'accepter le règlement.")
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩🟩🟩🟩🟩⬜ **6/7 (Règlement)**" });
-
-                    return await currentMainMessage.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(rulesMenu), actionRowControls] });
-                }
-
-                // ÉTAPE 6 -> ÉTAPE 7 : Règlement & Génération du Captcha Visuel
-                if (interaction.customId === "ob_rules") {
-                    const code = Math.floor(1000 + Math.random() * 9000);
-                    captchaStorage.set(member.id, code);
-                    captchaAttempts.set(member.id, 0);
-
-                    // Génération d'un Captcha sécurisé au format image
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("🛡️ Validation Humaine")
-                        .setDescription(`Étape de sécurité finale ! Recopie exactement le code à 4 chiffres ci-dessous dans le chat :\n\n# 🔢 Code de sécurité : \`${code}\``)
-                        .addFields({ name: "📊 Progression :", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Captcha)**" });
-
-                    return await currentMainMessage.edit({ embeds: [embed], components: [] }); 
-                }
-            });
-
-            // =====================================================
-            // 🛡️ RECEPTION ET VÉRIFICATION DU CAPTCHA TEXTE
-            // =====================================================
-            msgCollector.on("collect", async (msg) => {
-                if (msg.author.bot || msg.author.id !== member.id) return;
-
-                const targetCaptcha = captchaStorage.get(member.id);
-                if (!targetCaptcha) return;
-
-                // Code incorrect
-                if (msg.content.trim() !== targetCaptcha.toString()) {
-                    let attempts = (captchaAttempts.get(member.id) || 0) + 1;
-                    captchaAttempts.set(member.id, attempts);
-
-                    if (attempts >= 3) {
-                        const newCode = Math.floor(1000 + Math.random() * 9000);
-                        captchaStorage.set(member.id, newCode);
-                        captchaAttempts.set(member.id, 0);
-                        return msg.reply(`❌ **Trop d'erreurs.** Le code a été changé. Nouveau code : \`${newCode}\``).catch(() => {});
-                    } else {
-                        return msg.reply(`❌ **Code incorrect.** Il te reste **${3 - attempts} essai(s)** avant renouvellement.`).catch(() => {});
-                    }
-                }
-
-                // ---- CAPTCHA REUSSI ET CLÔTURE DU SALON ----
-                clearTimeout(inactivityTimeout);
-                msgCollector.stop();
-                compCollector.stop();
-                captchaStorage.delete(member.id);
-                captchaAttempts.delete(member.id);
-                userChannels.delete(member.id);
-
-                // Application du pseudonyme choisi
-                if (renameChoice.get(member.id) === true) {
+            if (member) {
+                if (userData.rename) {
                     await member.setNickname(`HvX ${member.user.username}`).catch(() => {});
                 }
-                renameChoice.delete(member.id);
-
-                // RETRAIT DU RÔLE ARRIVANT
                 await member.roles.remove(ARRIVE_ROLE).catch(() => {});
-
-                // ATTRIBUTION DU DUO DE RÔLES FINAUX
                 await member.roles.add(MEMBRE_ROLE).catch(() => {});
                 await member.roles.add(VERIFIED_ROLE).catch(() => {});
 
-                // Log final pour les administrateurs
+                const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
                 if (logChan) {
-                    logChan.send({
-                        embeds: [
-                            new EmbedBuilder()
-                                .setColor("Green")
-                                .setDescription(`✅ **Onboarding complété** pour ${member}. Le rôle Arrivant a été retiré, les rôles Membre et Vérifié ont été attribués.`)
-                        ]
-                    }).catch(() => {});
+                    logChan.send({ content: `✅ **Onboarding achevé avec succès** pour ${member}. Profil configuré et vérifié.` }).catch(() => {});
                 }
+            }
 
-                const endEmbed = new EmbedBuilder()
-                    .setColor("#57f287")
-                    .setTitle("✅ Profil Validé !")
-                    .setDescription("Ton inscription a été validée avec succès. Les salons du serveur viennent de s'ouvrir à toi !");
+            const endEmbed = new EmbedBuilder()
+                .setColor("#57f287")
+                .setTitle("✅ Profil Intégralement Validé !")
+                .setDescription("Félicitations, ton inscription est désormais terminée. Les salons de la structure viennent de t'être déverrouillés !");
+            
+            await msg.channel.send({ embeds: [endEmbed] }).catch(() => {});
 
-                await channel.send({ embeds: [endEmbed] }).catch(() => {});
+            delete db.users[msg.author.id];
+            saveDB();
 
-                // Suppression propre de l'unique salon au bout de 5 secondes
-                setTimeout(async () => {
-                    await channel.delete().catch(() => {});
-                }, 5000);
-            });
+            setTimeout(async () => {
+                await msg.channel.delete().catch(() => {});
+            }, 5000);
 
-        } catch (err) {
-            console.error("[ONBOARDING ERROR]", err);
+        } else {
+            // Gestion de l'échec de saisie du Captcha
+            userData.attempts++;
+            if (userData.attempts >= 3) {
+                const newCode = Math.floor(1000 + Math.random() * 9000);
+                userData.captcha = newCode;
+                userData.attempts = 0;
+                saveDB();
+                
+                // Actualisation de l'affichage avec le nouveau code
+                const member = await msg.guild.members.fetch(msg.author.id).catch(() => null);
+                const mainMsg = await msg.channel.messages.fetch({ limit: 10 }).then(messages => messages.find(m => m.author.id === client.user.id && m.embeds.length > 0));
+                if (mainMsg && member) {
+                    const embed = new EmbedBuilder()
+                        .setColor("#ffb347")
+                        .setTitle("🛡️ COMPTE RENDU DE SÉCURITÉ (CAPTCHA) ─ ÉTAPE 7")
+                        .setDescription(`**🔒 Code renouvelé suite à 3 échecs !**\n\nRecopie exactement ce nouveau code à 4 chiffres :\n\n# 🔢 Code de sécurité : \`${newCode}\``)
+                        .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
+                    await mainMsg.edit({ embeds: [embed] }).catch(() => {});
+                }
+                
+                await msg.reply(`❌ **Trop d'erreurs de frappe !** Le code de sécurité vient d'être renouvelé. Merci de retenter avec le nouveau code affiché ci-dessus.`).catch(() => {});
+            } else {
+                await msg.reply(`❌ **Code incorrect.** Attention aux fautes de frappe ! Il te reste **${3 - userData.attempts} essai(s)** avant régénération du code.`).catch(() => {});
+            }
+            saveDB();
         }
     });
 };
