@@ -50,7 +50,7 @@ const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
 const bienvenue = require("./events/bienvenue");
-const activityAI = require("./events/activityAI"); // 🔥 AJOUT : Importation du module de discussion IA HoveX-AI
+const coaching = require("./events/coaching");
 
 // =========================
 // CONFIG STATUS
