@@ -1,4 +1,9 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const {
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} = require("discord.js");
 
 // Cache pour stocker les invitations du serveur
 const invitesCache = new Map();
@@ -9,10 +14,10 @@ module.exports = (client) => {
     const GUILD_ID = "1501625824028266676";
     
     // ==========================================
-    // CONFIGURATION DES SALONS (ID CORRIGÉ ICI)
+    // CONFIGURATION DES SALONS & COMPOSANTS
     // ==========================================
     const CHANNELS = {
-        WELCOME: "1501626008564928572", // 🔥 Correction : Ton salon de bienvenue textuel
+        WELCOME: "1501626008564928572",
         LOGS_MEMBRES: "1521930283094638722",
         LOGS_INVITES: "1502757854568779944"
     };
@@ -24,8 +29,11 @@ module.exports = (client) => {
         CRITERES: "https://discord.com/channels/1501625824028266676/1501626012822147162"
     };
 
-    // Couleur Rose Team HoveX
-    const COLOR_ROSE = "#FF69B4";
+    // Couleur Blanche demandée
+    const COLOR_WHITE = "#FFFFFF";
+    
+    // URL de ton logo fourni
+    const LOGO_URL = "https://media.discordapp.net/attachments/1456718862283444414/1464677828749561987/mwWWI6B.png?ex=6a47f586&is=6a46a406&hm=2c1bcf48d52289db59bc89a72f04586c541bea085a8dbc2f65ef0025e70c06d9&=&format=webp&quality=lossless&width=960&height=960";
 
     // 1. CHARGEMENT INITIAL DES INVITATIONS AU DÉMARRAGE
     client.once("ready", async () => {
@@ -89,11 +97,11 @@ module.exports = (client) => {
         // --- ENVOI DU MESSAGE D'ACCUEIL DANS LE CHANNEL DE BIENVENUE ---
         const welcomeChannel = await guild.channels.fetch(CHANNELS.WELCOME).catch(() => null);
         if (welcomeChannel) {
-            const inviterText = inviterUser ? `${inviterUser.tag}` : "Inconnu ou via Vanité";
+            const inviterText = inviterUser ? `${inviterUser.username}` : "Inconnu ou via Vanité";
             const scoreText = inviterUser ? `(Déjà ${inviteUses} invitations)` : "";
 
             const welcomeEmbed = new EmbedBuilder()
-                .setColor(COLOR_ROSE)
+                .setColor(COLOR_WHITE)
                 .setTitle(`🔥 BIENVENUE CHEZ TEAM HOVEX 🔥`)
                 .setDescription(
                     `Bienvenue ${member} ! Installe-toi confortablement.\n\n` +
@@ -104,7 +112,7 @@ module.exports = (client) => {
                     `• Découvre l'histoire de la structure via notre [🎭 Présentation](${LINKS.PRESENTATION}).\n` +
                     `• Tu veux nous rejoindre ? Regarde les [🎮 Critères de Recrutement](${LINKS.CRITERES}).`
                 )
-                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                .setThumbnail(LOGO_URL) // Intégration du logo à droite de l'embed
                 .setFooter({ text: `Team HoveX • Compteur : ${memberCount} membres`, iconURL: guild.iconURL({ dynamic: true }) })
                 .setTimestamp();
 
@@ -115,7 +123,7 @@ module.exports = (client) => {
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("🎮 Critères de Recrutement").setURL(LINKS.CRITERES)
             );
 
-            // Envoi de la mention + de l'Embed rose + des boutons
+            // Envoi de la mention + de l'Embed blanc + des boutons
             welcomeChannel.send({ content: `👋 Hé, salut ${member} !`, embeds: [welcomeEmbed], components: [row] }).catch(() => {});
         }
 
