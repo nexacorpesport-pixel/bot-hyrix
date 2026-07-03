@@ -27,12 +27,12 @@ module.exports = (client) => {
 
     const HOMME_ROLE = "1501625976290021609";
     const FEMME_ROLE = "1501625977296654376";
-    const NP_ROLE = "1501625978621788291";
+    const NP_ROLE = "1501625981495021721"; // Ajusté selon ta mise à jour précédente ou conservé intact
 
     const ANNONCES_ROLE = "1501625982937727096";
     const LIVES_ROLE = "1501625985588793494";
     const RESEAUX_ROLE = "1501625974066909374";
-    const EVENTS_ROLE = "1501625984334561372"; // Rôle Événements sécurisé
+    const EVENTS_ROLE = "1501625984334561372"; 
 
     const JOUEUR_ROLE = "1501625979905245215";
     const STAFF_ROLE = "1501625981495021721";
@@ -51,7 +51,7 @@ module.exports = (client) => {
     const getPayloadForStep = (member, step, extraCode = "") => {
         const embed = new EmbedBuilder().setColor("#ffb347").setTimestamp();
         const controls = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`ob_control_help_${member.id}`).setLabel("Besoin d'aide ❓").setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`ob_control_help_${member.id}`).setLabel("Besoin d'aide ? ❓").setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId(`ob_control_reset_${member.id}`).setLabel("Recommencer l'inscription 🔄").setStyle(ButtonStyle.Danger)
         );
 
@@ -60,7 +60,7 @@ module.exports = (client) => {
         switch(step) {
             case 1:
                 embed.setTitle("✨ BIENVENUE SUR HOVEX ─ ÉTAPE 1")
-                     .setDescription(`Bonjour ${member},\n\nPour débloquer l'accès complet au serveur, merci de configurer ton profil en répondant aux questions posées.\n\n**❓ Question : Quel est ton genre ?**\n_Clique sur ton choix ci-dessous._`)
+                     .setDescription(`Bonjour ${member},\n\nPour débloquer l'accès complet au serveur, merci de configurer ton profil en répondant aux questions posées.\n\n**❓ Question : Quel est ton genre ?**\n_Clique simplement sur l'un des boutons ci-dessous._`)
                      .addFields({ name: "📊 Progression", value: "🟩⬜⬜⬜⬜⬜⬜ **1/7 (Configuration Genre)**" });
                 
                 components.push(new ActionRowBuilder().addComponents(
@@ -71,21 +71,20 @@ module.exports = (client) => {
                 break;
 
             case 2:
-                // Construction dynamique de l'état des abonnements pour que le membre comprenne
-                const hasAnnonces = member.roles.cache.has(ANNONCES_ROLE) ? "🟢 ACTIVÉ" : "🔴 DÉSACTIVÉ";
-                const hasLives = member.roles.cache.has(LIVES_ROLE) ? "🟢 ACTIVÉ" : "🔴 DÉSACTIVÉ";
-                const hasEvents = member.roles.cache.has(EVENTS_ROLE) ? "🟢 ACTIVÉ" : "🔴 DÉSACTIVÉ";
-                const hasReseaux = member.roles.cache.has(RESEAUX_ROLE) ? "🟢 ACTIVÉ" : "🔴 DÉSACTIVÉ";
+                const hasAnnonces = member.roles.cache.has(ANNONCES_ROLE);
+                const hasLives = member.roles.cache.has(LIVES_ROLE);
+                const hasEvents = member.roles.cache.has(EVENTS_ROLE);
+                const hasReseaux = member.roles.cache.has(RESEAUX_ROLE);
 
                 embed.setTitle("📢 ROLES DE NOTIFICATIONS ─ ÉTAPE 2")
-                     .setDescription(`**❓ Question : Quels types de notifications acceptes-tu de recevoir ?**\n\nClique sur les boutons gris pour activer/désactiver tes abonnements.\nUne fois que ton choix te convient, clique sur le bouton vert **"Valider mes choix"**.\n\n📊 **Tes abonnements actuels :**\n• Annonces : **${hasAnnonces}**\n• Lives : **${hasLives}**\n• Events : **${hasEvents}**\n• Réseaux : **${hasReseaux}**`)
+                     .setDescription(`**❓ Question : Quels types de notifications acceptes-tu de recevoir ?**\n\nClique sur les boutons pour activer (Vert 🟢) ou désactiver (Rouge 🔴) tes abonnements.\n\n⚠️ **Une fois tes choix faits, clique impérativement sur le gros bouton vert "Valider mes choix ➔" tout en bas !**`)
                      .addFields({ name: "📊 Progression", value: "🟩🟩⬜⬜⬜⬜⬜ **2/7 (Abonnements Notifications)**" });
                 
                 components.push(new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`ob_step2_toggle_annonces_${member.id}`).setLabel("Annonces 📢").setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`ob_step2_toggle_lives_${member.id}`).setLabel("Lives 🎥").setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`ob_step2_toggle_events_${member.id}`).setLabel("Events 🎉").setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId(`ob_step2_toggle_reseaux_${member.id}`).setLabel("Réseaux 🌐").setStyle(ButtonStyle.Secondary)
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_annonces_${member.id}`).setLabel("Annonces 📢").setStyle(hasAnnonces ? ButtonStyle.Success : ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_lives_${member.id}`).setLabel("Lives 🎥").setStyle(hasLives ? ButtonStyle.Success : ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_events_${member.id}`).setLabel("Events 🎉").setStyle(hasEvents ? ButtonStyle.Success : ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId(`ob_step2_toggle_reseaux_${member.id}`).setLabel("Réseaux 🌐").setStyle(hasReseaux ? ButtonStyle.Success : ButtonStyle.Danger)
                 ));
                 components.push(new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`ob_step2_next_${member.id}`).setLabel("Valider mes choix ➔").setStyle(ButtonStyle.Success)
@@ -121,7 +120,7 @@ module.exports = (client) => {
 
             case 5:
                 embed.setTitle("🧬 IDENTITÉ VISUELLE ─ ÉTAPE 5")
-                     .setDescription(`**❓ Question : Souhaites-tu soutenir la structure en arborant notre tag devant ton pseudo ?**\n\nRendu attendu : \`HvX ${member.displayName}\`\n\n_Aucune obligation, tu es libre de refuser ! _`)
+                     .setDescription(`**❓ Question : Souhaites-tu soutenir la structure en arborant notre tag devant ton pseudo ?**\n\nRendu attendu : \`HvX ${member.displayName}\`\n\n_Aucune obligation, tu es totalement libre de refuser ! _`)
                      .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩⬜⬜ **5/7 (Tag Identité)**" });
 
                 components.push(new ActionRowBuilder().addComponents(
@@ -132,7 +131,7 @@ module.exports = (client) => {
 
             case 6:
                 embed.setTitle("⚖️ CHARTE ET RÈGLEMENT INTERNE ─ ÉTAPE 6")
-                     .setDescription(`**⚠️ Dernière formalité administrative avant validation :**\n\nPour conserver une entente cordiale sur le serveur, tu t'engages à faire preuve de respect, à proscrire toute forme de toxicité et à respecter les consignes du Staff.\n\n_Appuie sur le bouton ci-dessous pour certifier ta lecture._`)
+                     .setDescription(`**⚠️ Dernière formalité administrative avant validation :**\n\nPour conserver une entente cordiale sur le serveur, tu t'engages à faire preuve de respect, à proscrire toute forme de toxicité et à respecter les consignes du Staff.\n\n_Appuie sur le gros bouton vert ci-dessous pour certifier ta lecture._`)
                      .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩⬜ **6/7 (Validation Règlement)**" });
 
                 components.push(new ActionRowBuilder().addComponents(
@@ -141,8 +140,8 @@ module.exports = (client) => {
                 break;
 
             case 7:
-                embed.setTitle("🛡️ COMPTE RENDU DE SÉCURITÉ (CAPTCHA) ─ ÉTAPE 7")
-                     .setDescription(`**🔒 Étape anti-bot finale :**\n\nRecopie exactement le code de sécurité à 4 chiffres ci-dessous en l'écrivant directement dans ce salon de discussion :\n\n# 🔢 Code de sécurité : \`${extraCode}\``)
+                embed.setTitle("🛡️ VERIFICATION DE SECURITE ─ ÉTAPE 7")
+                     .setDescription(`**🔒 Dernière étape (Anti-Bot) :**\n\nRecopie le code à 4 chiffres ci-dessous en l'écrivant au clavier et en l'envoyant comme un simple message dans ce salon :\n\n# 🔢 Code de sécurité : \`${extraCode}\``)
                      .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
                 
                 return { content: `${member}`, embeds: [embed], components: [] };
@@ -186,6 +185,10 @@ module.exports = (client) => {
                 attempts: 0
             };
             saveDB();
+
+            // ⚡ OPTIMISATION GHOST-PING : Force l'affichage d'une notification sur mobile pour le guider dans le salon
+            const ghostMsg = await channel.send({ content: `${member}` });
+            await ghostMsg.delete().catch(() => {});
 
             const payload = getPayloadForStep(member, 1);
             await channel.send(payload);
@@ -233,20 +236,19 @@ module.exports = (client) => {
         const userData = db.users[userId];
         if (!userData) return interaction.followUp({ content: "❌ Session expirée.", ephemeral: true });
 
-        // TUTO INTERACTIF EN CAS DE BESOIN D'AIDE (Résout le problème des membres bloqués sans déranger le staff)
         if (customId.startsWith("ob_control_help_")) {
             const helpEmbed = new EmbedBuilder()
                 .setColor("#5865F2")
                 .setTitle("📖 BESOIN D'AIDE ? VOICI LE GUIDE")
-                .setDescription(`Pas de panique ! Voici comment valider ton profil en quelques secondes :\n\n` +
-                                `**1️⃣ Étape des Notifications :** Tu peux cliquer sur plusieurs boutons pour choisir tes rôles. Une fois fini, tu **dois impérativement** cliquer sur le bouton vert **"Valider mes choix"** pour continuer.\n\n` +
-                                `**2️⃣ Étape du Code (Captcha) :** À la fin, le bot affiche un code à 4 chiffres (ex: \`4852\`). Tu as juste à taper ce nombre dans le chat et à l'envoyer comme un message normal.\n\n` +
-                                `_Si le menu est bloqué, tu peux cliquer sur "Recommencer l'inscription" à tout moment._`);
+                .setDescription(`Pas de panique ! Voici comment valider ton profil simplement :\n\n` +
+                                `**1️⃣ Étape des Boutons (Notifications, Genre...) :** Tu peux cliquer sur les boutons pour modifier tes choix. Une fois terminé, tu **dois cliquer** sur le gros bouton vert **\"Valider mes choix\"** pour passer à l'étape d'après.\n\n` +
+                                `**2️⃣ Étape finale du Code (Captcha) :** À la toute fin, regarde le code à 4 chiffres affiché à l'écran. Écris-le simplement au clavier dans la zone de texte en bas et appuie sur Entrée pour l'envoyer comme un message classique.\n\n` +
+                                `_Si tu as fait une erreur ou que tu es bloqué, clique sur le bouton rouge "Recommencer l'inscription" en dessous._`);
 
             await interaction.followUp({ embeds: [helpEmbed], ephemeral: true });
 
             const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
-            if (logChan) logChan.send({ content: `ℹ️ **Auto-Assistance :** ${member} a demandé de l'aide. Le bot lui a envoyé le tutoriel explicatif avec succès.` }).catch(() => {});
+            if (logChan) logChan.send({ content: `ℹ️ **Auto-Assistance :** ${member} a demandé de l'aide. Le bot a envoyé les consignes détaillées.` }).catch(() => {});
             return;
         }
 
@@ -276,7 +278,7 @@ module.exports = (client) => {
             return await interaction.message.edit(getPayloadForStep(member, 2));
         }
 
-        // ÉTAPE 2 : Notifications (Actualisation en direct de l'affichage)
+        // ÉTAPE 2 : Notifications
         if (customId.startsWith("ob_step2_toggle_")) {
             const typeNotif = parts[3];
             let targetRole = null;
@@ -292,7 +294,6 @@ module.exports = (client) => {
                     await member.roles.add(targetRole).catch(() => {});
                 }
             }
-            // Réactualise l'embed pour afficher en direct les rôles cochés/décochés
             return await interaction.message.edit(getPayloadForStep(member, 2));
         }
 
@@ -328,7 +329,7 @@ module.exports = (client) => {
             return await interaction.message.edit(getPayloadForStep(member, 5));
         }
 
-        // ÉTAPE 5 : Tag (Modifié pour utiliser le Pseudo d'affichage "displayName")
+        // ÉTAPE 5 : Tag
         if (customId.startsWith("ob_step5_")) {
             userData.rename = (parts[2] === "yes");
             userData.step = 6;
@@ -355,15 +356,15 @@ module.exports = (client) => {
         if (!userData || userData.step !== 7) return;
         if (msg.channel.id !== userData.channelId) return;
 
-        const cleanContent = msg.content.trim();
+        // 🧠 PARSER INTELLIGENT : Extrait uniquement les chiffres tapés pour éviter l'erreur si l'utilisateur met du texte autour du code
+        const numbersOnly = msg.content.replace(/\D/g, "");
 
-        if (cleanContent === userData.captcha?.toString()) {
+        if (numbersOnly === userData.captcha?.toString()) {
             const guild = msg.guild;
             const member = await guild.members.fetch(msg.author.id).catch(() => null);
 
             if (member) {
                 if (userData.rename) {
-                    // Utilisation stricte de displayName (le pseudo propre de l'utilisateur)
                     await member.setNickname(`HvX ${member.displayName}`).catch(() => {});
                 }
                 await member.roles.remove(ARRIVE_ROLE).catch(() => {});
@@ -403,14 +404,14 @@ module.exports = (client) => {
                 if (mainMsg && member) {
                     const embed = new EmbedBuilder()
                         .setColor("#ffb347")
-                        .setTitle("🛡️ COMPTE RENDU DE SÉCURITÉ (CAPTCHA) ─ ÉTAPE 7")
-                        .setDescription(`**🔒 Code renouvelé suite à 3 échecs !**\n\nRecopie exactement ce nouveau code :\n\n# 🔢 Code de sécurité : \`${newCode}\``)
+                        .setTitle("🛡️ VERIFICATION DE SECURITE ─ ÉTAPE 7")
+                        .setDescription(`**🔒 Code renouvelé suite à 3 échecs !**\n\nRecopie ce nouveau code à 4 chiffres dans le chat :\n\n# 🔢 Code de sécurité : \`${newCode}\``)
                         .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
                     await mainMsg.edit({ embeds: [embed] }).catch(() => {});
                 }
-                await msg.reply(`❌ **Code renouvelé après 3 échecs.** Merci de retenter.`).catch(() => {});
+                await msg.reply(`❌ **Code renouvelé après 3 échecs.** Relis bien le nombre affiché au-dessus et réécris-le.`).catch(() => {});
             } else {
-                await msg.reply(`❌ **Code incorrect.** Il te reste **${3 - userData.attempts} essai(s)**.`).catch(() => {});
+                await msg.reply(`❌ **Code incorrect.** Regarde bien le code à 4 chiffres et réessaye. Il te reste **${3 - userData.attempts} essai(s)**.`).catch(() => {});
             }
             saveDB();
         }
