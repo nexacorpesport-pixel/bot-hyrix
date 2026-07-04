@@ -35,7 +35,9 @@ const client = new Client({
         GatewayIntentBits.GuildPresences
     ],
     partials: [
-        Partials.Channel
+        Partials.Channel,
+        Partials.Message, // Sécurité pour les anciens messages (utile pour l'anti-spam/logs)
+        Partials.GuildMember // Sécurité pour le suivi des membres déconnectés
     ]
 });
 
@@ -121,8 +123,11 @@ client.once("ready", async () => {
 
         console.log("✅ Tous les systèmes chargés.");
 
-        await updateStatus();
-        setInterval(updateStatus, 30000);
+        // On attend 2 secondes avant de lancer le premier statut pour laisser le cache se stabiliser
+        setTimeout(async () => {
+            await updateStatus();
+            setInterval(updateStatus, 30000);
+        }, 2000);
 
     } catch (err) {
         console.log("❌ Erreur chargement systèmes :", err);
