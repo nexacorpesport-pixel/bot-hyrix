@@ -1,6 +1,6 @@
 const { 
     EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, 
-    PermissionsBitField, ChannelType 
+    PermissionsBitField, ChannelType, MessageFlags 
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
@@ -27,7 +27,7 @@ module.exports = (client) => {
 
     const HOMME_ROLE = "1501625976290021609";
     const FEMME_ROLE = "1501625977296654376";
-    const NP_ROLE = "1501625981495021721"; // Ajusté selon ta mise à jour précédente ou conservé intact
+    const NP_ROLE = "1501625981495021721";
 
     const ANNONCES_ROLE = "1501625982937727096";
     const LIVES_ROLE = "1501625985588793494";
@@ -144,6 +144,7 @@ module.exports = (client) => {
                      .setDescription(`**🔒 Dernière étape (Anti-Bot) :**\n\nRecopie le code à 4 chiffres ci-dessous en l'écrivant au clavier et en l'envoyant comme un simple message dans ce salon :\n\n# 🔢 Code de sécurité : \`${extraCode}\``)
                      .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
                 
+                // Pas de barre de boutons reset/aide à l'étape du captcha textuel pour fluidifier le chat
                 return { content: `${member}`, embeds: [embed], components: [] };
         }
 
@@ -186,7 +187,6 @@ module.exports = (client) => {
             };
             saveDB();
 
-            // ⚡ OPTIMISATION GHOST-PING : Force l'affichage d'une notification sur mobile pour le guider dans le salon
             const ghostMsg = await channel.send({ content: `${member}` });
             await ghostMsg.delete().catch(() => {});
 
@@ -224,7 +224,7 @@ module.exports = (client) => {
         const userId = parts[parts.length - 1];
 
         if (interaction.user.id !== userId) {
-            return interaction.reply({ content: "❌ Ce menu d'inscription ne t'est pas destiné.", ephemeral: true });
+            return interaction.reply({ content: "❌ Ce menu d'inscription ne t'est pas destiné.", flags: [MessageFlags.Ephemeral] });
         }
 
         await interaction.deferUpdate().catch(() => {});
@@ -234,7 +234,7 @@ module.exports = (client) => {
         if (!member) return;
 
         const userData = db.users[userId];
-        if (!userData) return interaction.followUp({ content: "❌ Session expirée.", ephemeral: true });
+        if (!userData) return interaction.followUp({ content: "❌ Session expirée.", flags: [MessageFlags.Ephemeral] });
 
         if (customId.startsWith("ob_control_help_")) {
             const helpEmbed = new EmbedBuilder()
@@ -245,7 +245,7 @@ module.exports = (client) => {
                                 `**2️⃣ Étape finale du Code (Captcha) :** À la toute fin, regarde le code à 4 chiffres affiché à l'écran. Écris-le simplement au clavier dans la zone de texte en bas et appuie sur Entrée pour l'envoyer comme un message classique.\n\n` +
                                 `_Si tu as fait une erreur ou que tu es bloqué, clique sur le bouton rouge "Recommencer l'inscription" en dessous._`);
 
-            await interaction.followUp({ embeds: [helpEmbed], ephemeral: true });
+            await interaction.followUp({ embeds: [helpEmbed], flags: [MessageFlags.Ephemeral] });
 
             const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
             if (logChan) logChan.send({ content: `ℹ️ **Auto-Assistance :** ${member} a demandé de l'aide. Le bot a envoyé les consignes détaillées.` }).catch(() => {});
@@ -356,7 +356,6 @@ module.exports = (client) => {
         if (!userData || userData.step !== 7) return;
         if (msg.channel.id !== userData.channelId) return;
 
-        // 🧠 PARSER INTELLIGENT : Extrait uniquement les chiffres tapés pour éviter l'erreur si l'utilisateur met du texte autour du code
         const numbersOnly = msg.content.replace(/\D/g, "");
 
         if (numbersOnly === userData.captcha?.toString()) {
@@ -401,13 +400,12 @@ module.exports = (client) => {
                 
                 const member = await msg.guild.members.fetch(msg.author.id).catch(() => null);
                 const mainMsg = await msg.channel.messages.fetch({ limit: 10 }).then(messages => messages.find(m => m.author.id === client.user.id && m.embeds.length > 0));
+                
                 if (mainMsg && member) {
-                    const embed = new EmbedBuilder()
-                        .setColor("#ffb347")
-                        .setTitle("🛡️ VERIFICATION DE SECURITE ─ ÉTAPE 7")
-                        .setDescription(`**🔒 Code renouvelé suite à 3 échecs !**\n\nRecopie ce nouveau code à 4 chiffres dans le chat :\n\n# 🔢 Code de sécurité : \`${newCode}\``)
-                        .addFields({ name: "📊 Progression", value: "🟩🟩🟩🟩🟩🟩🟩 **7/7 (Vérification Humaine)**" });
-                    await mainMsg.edit({ embeds: [embed] }).catch(() => {});
+                    // CORRECTION : Régénération propre via la fonction centrale pour conserver la structure et éviter les crashs
+                    const payload = getPayloadForStep(member, 7, newCode.toString());
+                    payload.embeds[0].setDescription(`**🔒 Code renouvelé suite à 3 échecs !**\n\nRecopie ce nouveau code à 4 chiffres dans le chat :\n\n# 🔢 Code de sécurité : \`${newCode}\``);
+                    await mainMsg.edit(payload).catch(() => {});
                 }
                 await msg.reply(`❌ **Code renouvelé après 3 échecs.** Relis bien le nombre affiché au-dessus et réécris-le.`).catch(() => {});
             } else {
