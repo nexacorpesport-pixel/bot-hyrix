@@ -112,7 +112,7 @@ async function updateStatus() {
         else {
             status = {
                 type: ActivityType.Watching,
-                name: "Dev By Zeynor"
+                name: "Dev By Luxx"
             };
         }
 
