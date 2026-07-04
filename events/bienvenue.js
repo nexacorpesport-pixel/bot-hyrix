@@ -55,7 +55,7 @@ module.exports = (client) => {
         invitesCache.set(invite.guild.id, guildInvites);
 
         const logInviteEmbed = new EmbedBuilder()
-            .setColor("Green")
+            .setColor("#2ecc71") // Vert Hexa stable 🟢
             .setTitle("➕ Invitation Créée")
             .setDescription(`**Code :** \`${invite.code}\`\n**Créateur :** ${invite.inviter ? invite.inviter.tag : "Inconnu"}\n**Salon :** ${invite.channel}`)
             .setTimestamp();
@@ -112,18 +112,17 @@ module.exports = (client) => {
                     `• Découvre l'histoire de la structure via notre [🎭 Présentation](${LINKS.PRESENTATION}).\n` +
                     `• Tu veux nous rejoindre ? Regarde les [🎮 Critères de Recrutement](${LINKS.CRITERES}).`
                 )
-                .setThumbnail(LOGO_URL) // Intégration du logo à droite de l'embed
+                .setThumbnail(LOGO_URL)
                 .setFooter({ text: `Team HoveX • Compteur : ${memberCount} membres`, iconURL: guild.iconURL({ dynamic: true }) })
                 .setTimestamp();
 
-            // Création de la rangée de boutons cliquables sous l'embed
+            // Rangée de boutons
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("📜 Règlement").setURL(LINKS.REGLEMENT),
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("🎭 Présentation").setURL(LINKS.PRESENTATION),
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("🎮 Critères de Recrutement").setURL(LINKS.CRITERES)
             );
 
-            // Envoi de la mention + de l'Embed blanc + des boutons
             welcomeChannel.send({ content: `👋 Hé, salut ${member} !`, embeds: [welcomeEmbed], components: [row] }).catch(() => {});
         }
 
@@ -131,7 +130,7 @@ module.exports = (client) => {
         const logMembreChannel = await client.channels.fetch(CHANNELS.LOGS_MEMBRES).catch(() => null);
         if (logMembreChannel) {
             const joinEmbed = new EmbedBuilder()
-                .setColor("Green")
+                .setColor("#2ecc71") // Vert Hexa stable 🟢
                 .setTitle("📥 Nouveau Membre")
                 .setDescription(`**Compte :** ${member.user.tag} (\`${member.id}\`)\n**Créé le :** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
@@ -144,7 +143,7 @@ module.exports = (client) => {
             const logInviteChannel = await client.channels.fetch(CHANNELS.LOGS_INVITES).catch(() => null);
             if (logInviteChannel) {
                 const infoInviteEmbed = new EmbedBuilder()
-                    .setColor("Pink")
+                    .setColor("#ffc0cb") // Rose Hexa valide 🌸 (Plus d'erreur "Pink")
                     .setTitle("🎯 Tracking d'Invitation")
                     .setDescription(`**Joueur arrivé :** ${member.user.tag}\n**Inviteur :** ${inviterUser.tag} (\`${inviterUser.id}\`)\n**Score de l'inviteur :** \`${inviteUses}\` utilisations au total.`)
                     .setTimestamp();
@@ -160,7 +159,7 @@ module.exports = (client) => {
         const logMembreChannel = await client.channels.fetch(CHANNELS.LOGS_MEMBRES).catch(() => null);
         if (logMembreChannel) {
             const leaveEmbed = new EmbedBuilder()
-                .setColor("Red")
+                .setColor("#e74c3c") // Rouge Hexa stable 🔴
                 .setTitle("📤 Départ d'un membre")
                 .setDescription(`**Compte :** ${member.user.tag} (\`${member.id}\`)\n\nLe serveur compte désormais **${member.guild.memberCount}** membres.`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
