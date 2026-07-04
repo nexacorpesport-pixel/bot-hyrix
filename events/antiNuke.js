@@ -4,7 +4,8 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    ChannelType
+    ChannelType,
+    MessageFlags // Ajouté pour corriger le warning "ephemeral"
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
@@ -82,7 +83,7 @@ module.exports = (client) => {
         await member.roles.remove(rolesToRemove, `Sécurité Anti-Nuke : ${reason}`).catch(() => {});
 
         const emergencyEmbed = new EmbedBuilder()
-            .setColor("DarkRed")
+            .setColor("#8b0000") // Corrigé : Code Hexa pour Rouge Foncé 🔴
             .setTitle("🚨 DESTITUTION IMMÉDIATE DU COMPTE STAFF 🚨")
             .setDescription(`**Auteur :** ${member.user} (\`${member.id}\`)\n**Raison :** ${reason}\n\n🔒 **Mesure :** Quarantaine totale appliquée par retrait des rôles.`);
 
@@ -154,7 +155,7 @@ module.exports = (client) => {
                 await message.delete().catch(() => {});
                 
                 const bunkerEmbed = new EmbedBuilder()
-                    .setColor("DarkRed")
+                    .setColor("#8b0000") // Corrigé : Code Hexa pour Rouge Foncé 🔴
                     .setTitle("🛡️ ÉTAT DE SIÈGE : ENCLENCHEMENT DU BUNKER")
                     .setDescription(`🔒 **La catégorie de confinement <#${BUNKER_CATEGORY_ID}> est sous protection militaire.**\n\n⚡ **Contrôles stricts appliqués :**\n• Révocation définitive de toutes les invitations du serveur.\n• Nettoyage et déconnexion instantanée des salons vocaux.\n• Injection automatique du rôle de restriction à tous les membres.\n• Chasse et blocage dynamique des flux HTTP/HTTPS.`);
                 sendLog(CHANNELS.ANTI_RAID, bunkerEmbed);
@@ -192,7 +193,7 @@ module.exports = (client) => {
                 await message.delete().catch(() => {});
                 
                 const bunkerOffEmbed = new EmbedBuilder()
-                    .setColor("Green")
+                    .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
                     .setTitle("🔓 NORMALISATION DU SERVEUR : FIN DU SIÈGE")
                     .setDescription("♻️ Retrait globalisé du rôle de confinement et réouverture ordonnée de la structure.");
                 sendLog(CHANNELS.ANTI_RAID, bunkerOffEmbed);
@@ -282,7 +283,7 @@ module.exports = (client) => {
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("Orange")
+            .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
             .setTitle("🗑️ Salon Supprimé")
             .setDescription(`**Nom :** \`#${channel.name}\`\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_SALONS, logEmbed);
@@ -308,7 +309,7 @@ module.exports = (client) => {
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("Green")
+            .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
             .setTitle("➕ Salon Créé")
             .setDescription(`**Salon :** ${channel}\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_SALONS, logEmbed);
@@ -329,7 +330,7 @@ module.exports = (client) => {
         if (globalJoinTimestamps.length >= RAID_FLUX_LIMIT && !FLUX_RAID_ALERT_ACTIVE) {
             FLUX_RAID_ALERT_ACTIVE = true;
             const alertFluxEmbed = new EmbedBuilder()
-                .setColor("Orange")
+                .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
                 .setTitle("⚠️ SEUILS DE FLUX ATTEINTS : ATTAQUE SOUÇONNÉE")
                 .setDescription(`Une grappe de \`${globalJoinTimestamps.length}\` connexions simultanées détectée.\n\n🛡️ Activation du verrouillage systématique par étiquette **Suspect**.`);
             sendLog(CHANNELS.ANTI_RAID, alertFluxEmbed);
@@ -361,7 +362,7 @@ module.exports = (client) => {
             else if (FLUX_RAID_ALERT_ACTIVE) activeReason = "Protection de Flux Actif (Alerte Raid)";
 
             const suspectEmbed = new EmbedBuilder()
-                .setColor("Orange")
+                .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
                 .setTitle("🔍 ISOLEMENT AUTOMATIQUE D'UN NOUVEAU MEMBRE")
                 .setDescription(`**Membre :** ${member.user} (\`${member.id}\`)\n**Raison :** ${activeReason}`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
@@ -390,7 +391,7 @@ module.exports = (client) => {
         saveDatabase();
 
         const logEmbed = new EmbedBuilder()
-            .setColor("Red")
+            .setColor("#e74c3c") // Corrigé : Rouge Hexa stable 🔴
             .setTitle("🗑️ Rôle Supprimé")
             .setDescription(`**Rôle :** \`@${role.name}\`\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_ROLES, logEmbed);
@@ -427,11 +428,15 @@ module.exports = (client) => {
         if (interaction.customId === "nuke_clear_flux") {
             if (interaction.user.id !== WHITELIST_CEO_ID) return;
             FLUX_RAID_ALERT_ACTIVE = false;
-            return interaction.reply({ content: "🔓 Alerte de flux réinitialisée.", ephemeral: true });
+            // Corrigé : Remplacement d'ephemeral par flags pour effacer le warning
+            return interaction.reply({ content: "🔓 Alerte de flux réinitialisée.", flags: [MessageFlags.Ephemeral] });
         }
 
         if (interaction.customId !== "nuke_restore_all") return;
-        if (interaction.user.id !== WHITELIST_CEO_ID) return interaction.reply({ content: "❌ Autorisation refusée.", ephemeral: true });
+        if (interaction.user.id !== WHITELIST_CEO_ID) {
+            // Corrigé : Remplacement d'ephemeral par flags
+            return interaction.reply({ content: "❌ Autorisation refusée.", flags: [MessageFlags.Ephemeral] });
+        }
 
         await interaction.deferUpdate();
         const guild = interaction.guild;
@@ -462,7 +467,7 @@ module.exports = (client) => {
         saveDatabase();
 
         const successEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-            .setColor("Green")
+            .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
             .setTitle("✅ PROTOCOLE DE RESTAURATION EXÉCUTÉ")
             .setDescription("Les configurations et structures sauvegardées localement ont été injectées et restaurées avec succès.");
         await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
