@@ -1,7 +1,7 @@
 const { 
     EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, 
     ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder,
-    ChannelType 
+    ChannelType, MessageFlags 
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
@@ -25,7 +25,11 @@ if (!fs.existsSync(DATA_PATH)) {
 }
 let coachingData = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
 if (!coachingData.history) coachingData.history = [];
-if (!coachingData.coachStats) coachingData.coachStats = [];
+
+// CORRECTION CRITIQUE : Toujours forcer un objet {} pour éviter de casser Object.entries()
+if (!coachingData.coachStats || Array.isArray(coachingData.coachStats)) {
+    coachingData.coachStats = {};
+}
 
 const cooldowns = new Map();
 
@@ -130,11 +134,13 @@ function startVoiceChecker(client) {
         if (!coachingData.sessions || coachingData.sessions.length === 0) return;
         let change = false;
 
+        // CORRECTION : Récupération sécurisée du serveur via le salon configuré
+        const targetChannel = client.channels.cache.get(config.PLANNING_CHANNEL);
+        const guild = targetChannel?.guild;
+        if (!guild) return;
+
         for (const session of coachingData.sessions) {
             if (session.status === "EN COURS") continue;
-
-            const guild = client.guilds.cache.first();
-            if (!guild) continue;
 
             const coachMember = await guild.members.fetch(session.coachId).catch(() => null);
             const userMember = await guild.members.fetch(session.userId).catch(() => null);
@@ -192,7 +198,7 @@ module.exports = async (client) => {
         try {
             if (interaction.isButton() && interaction.customId === "start_apply") {
                 if (!checkQuota(interaction.user.id)) {
-                    return interaction.reply({ content: "❌ Tu as déjà demandé ou effectué un coaching ce mois-ci.", ephemeral: true });
+                    return interaction.reply({ content: "❌ Tu as déjà demandé ou effectué un coaching ce mois-ci.", flags: [MessageFlags.Ephemeral] });
                 }
 
                 const selectMenu = new StringSelectMenuBuilder()
@@ -209,7 +215,7 @@ module.exports = async (client) => {
                 await interaction.reply({ 
                     content: "Étape 1/2 : Indique ta tranche de PR pour débloquer le formulaire.", 
                     components: [new ActionRowBuilder().addComponents(selectMenu)], 
-                    ephemeral: true 
+                    flags: [MessageFlags.Ephemeral] 
                 });
             }
 
@@ -228,7 +234,7 @@ module.exports = async (client) => {
             }
 
             if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_coaching_")) {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
                 const prValue = interaction.customId.split("_")[2];
                 const age = interaction.fields.getTextInputValue("c_age");
                 const rank = interaction.fields.getTextInputValue("c_rank");
@@ -263,7 +269,7 @@ module.exports = async (client) => {
             }
 
             if (interaction.isButton() && (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_"))) {
-                if (!interaction.member.permissions.has("ManageMessages")) return interaction.reply({ content: "❌ Permissions insuffisantes.", ephemeral: true });
+                if (!interaction.member.permissions.has("ManageMessages")) return interaction.reply({ content: "❌ Permissions insuffisantes.", flags: [MessageFlags.Ephemeral] });
 
                 const action = interaction.customId.split("_")[0];
                 const userId = interaction.customId.split("_")[1];
@@ -273,7 +279,7 @@ module.exports = async (client) => {
                     const targetUser = await client.users.fetch(userId).catch(() => null);
                     if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée.").catch(() => null);
                     await interaction.message.delete().catch(() => null);
-                    return interaction.reply({ content: "Candidature refusée.", ephemeral: true });
+                    return interaction.reply({ content: "Candidature refusée.", flags: [MessageFlags.Ephemeral] });
                 }
 
                 if (action === "accept") {
@@ -285,7 +291,7 @@ module.exports = async (client) => {
             }
 
             if (interaction.isModalSubmit() && interaction.customId.startsWith("final_plan_")) {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
                 const userId = interaction.customId.split("_")[2];
                 const rankInfo = interaction.customId.split("_")[3];
                 const time = interaction.fields.getTextInputValue("f_time");
@@ -331,7 +337,7 @@ module.exports = async (client) => {
                 const userId = interaction.customId.split("_")[2];
                 const session = coachingData.sessions.find(s => s.userId === userId);
 
-                if (!session) return interaction.reply({ content: "Séance introuvable.", ephemeral: true });
+                if (!session) return interaction.reply({ content: "Séance introuvable.", flags: [MessageFlags.Ephemeral] });
 
                 if (action === "encours") {
                     session.status = "EN COURS";
@@ -358,7 +364,6 @@ module.exports = async (client) => {
                     setTimeout(() => interaction.channel.delete().catch(() => null), 5000);
                 }
                 if (action === "fini") {
-                    // Ouverture du compte rendu pour le coach
                     const summaryModal = new ModalBuilder().setCustomId(`coach_summary_${userId}`).setTitle("Compte-rendu du Coach");
                     summaryModal.addComponents(
                         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("s_text").setLabel("Points travaillés & Axes d'amélioration :").setStyle(TextInputStyle.Paragraph).setRequired(true))
@@ -367,7 +372,6 @@ module.exports = async (client) => {
                 }
             }
 
-            // Validation du compte rendu du Coach
             if (interaction.isModalSubmit() && interaction.customId.startsWith("coach_summary_")) {
                 await interaction.deferReply();
                 const userId = interaction.customId.split("_")[2];
@@ -377,7 +381,6 @@ module.exports = async (client) => {
                 if (sessionIndex === -1) return interaction.editReply("Erreur : session introuvable.");
                 const session = coachingData.sessions[sessionIndex];
 
-                // Mise à jour des stats du coach
                 if (!coachingData.coachStats[session.coachId]) {
                     coachingData.coachStats[session.coachId] = { count: 0, ratingSum: 0, totalRatings: 0 };
                 }
@@ -395,7 +398,6 @@ module.exports = async (client) => {
                 saveCoachingData();
                 await updateDashboard(client);
 
-                // Envoi du bilan au joueur en DM
                 const targetUser = await client.users.fetch(userId).catch(() => null);
                 if (targetUser) {
                     const dmEmbed = new EmbedBuilder()
@@ -405,7 +407,6 @@ module.exports = async (client) => {
                     await targetUser.send({ embeds: [dmEmbed] }).catch(() => null);
                 }
 
-                // Génération des boutons d'avis pour le joueur directement dans le fil avant destruction
                 const reviewRow = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId(`rate_${session.coachId}_${userId}`)
@@ -425,22 +426,20 @@ module.exports = async (client) => {
                 });
             }
 
-            // Gestion de la note (Avis joueur)
             if (interaction.isStringSelectMenu() && interaction.customId.startsWith("rate_")) {
                 const coachId = interaction.customId.split("_")[1];
                 const userId = interaction.customId.split("_")[2];
                 const rating = parseInt(interaction.values[0]);
 
-                if (interaction.user.id !== userId) return interaction.reply({ content: "❌ Seul le joueur coché peut donner sa note !", ephemeral: true });
+                if (interaction.user.id !== userId) return interaction.reply({ content: "❌ Seul le joueur coché peut donner sa note !", flags: [MessageFlags.Ephemeral] });
 
                 const commentModal = new ModalBuilder().setCustomId(`comment_${coachId}_${rating}`).setTitle("Laisse ton avis écrit");
                 commentModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("r_comment").setLabel("Commentaire sur la séance :").setStyle(TextInputStyle.Paragraph).setRequired(true)));
                 await interaction.showModal(commentModal);
             }
 
-            // Envoi de l'avis écrit final
             if (interaction.isModalSubmit() && interaction.customId.startsWith("comment_")) {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
                 const coachId = interaction.customId.split("_")[1];
                 const rating = parseInt(interaction.customId.split("_")[2]);
                 const comment = interaction.fields.getTextInputValue("r_comment");
@@ -488,10 +487,10 @@ module.exports = async (client) => {
 
             if (interaction.isButton() && interaction.customId === "refresh_dashboard") {
                 const lastClick = cooldowns.get(interaction.user.id);
-                if (lastClick && Date.now() - lastClick < 10000) return interaction.reply({ content: "⏳ Patiente.", ephemeral: true });
+                if (lastClick && Date.now() - lastClick < 10000) return interaction.reply({ content: "⏳ Un cooldown de 10 secondes est actif.", flags: [MessageFlags.Ephemeral] });
                 cooldowns.set(interaction.user.id, Date.now());
                 await updateDashboard(client);
-                await interaction.reply({ content: "✅ Mis à jour !", ephemeral: true });
+                await interaction.reply({ content: "✅ Mis à jour !", flags: [MessageFlags.Ephemeral] });
             }
 
         } catch (error) {
