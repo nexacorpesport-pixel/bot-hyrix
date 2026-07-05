@@ -33,7 +33,7 @@ const globalCooldowns = new Set();
 
 module.exports = async (client) => {
 
-    console.log("[🎫 TICKET SYSTEM] Chargement de la configuration HoveX Premium...");
+    console.log("[🎫 TICKET SYSTEM] Chargement de la configuration Premium Aeroz Esports...");
 
     // =====================================================
     // 1. CRÉATION / SYNC DU PANEL PRINCIPAL
@@ -48,9 +48,9 @@ module.exports = async (client) => {
 
         const panelEmbed = new EmbedBuilder()
             .setColor("#ffb347")
-            .setTitle("🎫 Team HoveX — Centre de Support")
+            .setTitle("🎫 Aeroz Esports — Centre de Support")
             .setDescription("Sélectionnez la catégorie adaptée à votre demande pour ouvrir un accès privé :\n\n🛡️ **Staff** (Recrutement Modération)\n🎮 **Joueur (PR & Rôles Compétitifs)**\n🎬 **Audiovisuel** (Design, Vidéo, Mapping)\n🆘 **Assistance / Aide**\n🤝 **Partenariat / Projets**")
-            .setFooter({ text: "HoveX Automations • Cliquez ci-dessous" });
+            .setFooter({ text: "Aeroz Automations • Cliquez ci-dessous" });
 
         const menuSelection = new StringSelectMenuBuilder()
             .setCustomId("ticket_select")
@@ -101,7 +101,6 @@ module.exports = async (client) => {
     // 3. GESTIONNAIRE GLOBAL DES INTERACTIONS
     // =====================================================
     client.on("interactionCreate", async (i) => {
-        // Gestion des interactions reçues en Message Privé (MP) pour les avis
         if (!i.guild) {
             const db = readDB();
 
@@ -110,7 +109,7 @@ module.exports = async (client) => {
                 const stars = parts[1];
                 const staffId = parts[2];
 
-                const modal = new ModalBuilder().setCustomId(`submit_review_${stars}_${staffId}`).setTitle("Votre avis sur Team HoveX");
+                const modal = new ModalBuilder().setCustomId(`submit_review_${stars}_${staffId}`).setTitle("Votre avis sur Aeroz Esports");
                 modal.addComponents(new ActionRowBuilder().addComponents(
                     new TextInputBuilder().setCustomId("comment").setLabel("Rédigez votre commentaire de satisfaction").setStyle(TextInputStyle.Paragraph).setRequired(true)
                 ));
@@ -127,7 +126,7 @@ module.exports = async (client) => {
                 const starsVisual = "⭐".repeat(stars);
                 const reviewEmbed = new EmbedBuilder()
                     .setColor(stars >= 4 ? "Gold" : "Orange")
-                    .setTitle("📝 Nouvel Avis Support — Team HoveX")
+                    .setTitle("📝 Nouvel Avis Support — Aeroz Esports")
                     .addFields(
                         { name: "Staff Évalué", value: `<@${staffId}> (\`${staffId}\`)`, inline: true },
                         { name: "Note globale", value: `${starsVisual} (${stars}/5)`, inline: true },
@@ -136,24 +135,21 @@ module.exports = async (client) => {
                     )
                     .setTimestamp();
 
-                // Sauvegarde en Base de données
                 if (!db.stats[staffId]) db.stats[staffId] = { closedTickets: 0, reviews: [] };
                 db.stats[staffId].reviews.push(stars);
                 writeDB(db);
 
-                // Envoi sur le serveur dans le salon logs avis
-                const guildHoveX = client.guilds.cache.first(); // Récupère le serveur principal du bot
-                if (guildHoveX) {
-                    const reviewLogs = await guildHoveX.channels.fetch(AVIS_CHANNEL).catch(() => null);
+                const guildInstance = client.guilds.cache.first();
+                if (guildInstance) {
+                    const reviewLogs = await guildInstance.channels.fetch(AVIS_CHANNEL).catch(() => null);
                     if (reviewLogs) await reviewLogs.send({ embeds: [reviewEmbed] });
                 }
 
-                return i.editReply({ content: "✅ Merci beaucoup ! Votre évaluation a bien été transmise à la direction de la Team HoveX." });
+                return i.editReply({ content: "✅ Merci beaucoup ! Votre évaluation a bien été transmise à la direction de Aeroz Esports." });
             }
             return;
         }
 
-        // --- ANTI SPAM COOLDOWN ---
         if (i.isButton() || i.isStringSelectMenu()) {
             const cooldownKey = `${i.user.id}-${i.customId}`;
             if (globalCooldowns.has(cooldownKey)) return i.reply({ content: "⏳ Action trop rapide, veuillez patienter.", ephemeral: true });
@@ -209,7 +205,7 @@ module.exports = async (client) => {
             const infoEmbed = new EmbedBuilder().setColor("#2f3136").setDescription(`👤 **Demandeur :** ${i.user} (\`${i.user.id}\`)`);
 
             if (type === "joueur") {
-                mainEmbed.setDescription("Bienvenue dans l'espace Joueurs de Team HoveX.\n\nMerci de cliquer sur le bouton vert ci-dessous pour soumettre vos PR et démarrer votre processus d'intégration.");
+                mainEmbed.setDescription("Bienvenue dans l'espace Joueurs de Aeroz Esports.\n\nMerci de cliquer sur le bouton vert ci-dessous pour soumettre vos PR et démarrer votre processus d'intégration.");
                 actionButtons.addComponents(new ButtonBuilder().setCustomId("form_joueur").setLabel("Remplir Formulaire").setStyle(ButtonStyle.Success).setEmoji("🧾"));
                 await ticketChannel.send({ content: `<@${i.user.id}>`, embeds: [mainEmbed, infoEmbed], components: [actionButtons, utilityButtons] });
             } 
@@ -243,13 +239,13 @@ module.exports = async (client) => {
         // --- B. TRAITEMENT DU FORMULAIRE PR JOUEUR ---
         if (i.isButton() && i.customId === "form_joueur") {
             if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Seul le propriétaire du ticket peut interagir.", ephemeral: true });
-            const modal = new ModalBuilder().setCustomId("joueur_modal_submit").setTitle("Recrutement Joueur HoveX");
+            const modal = new ModalBuilder().setCustomId("joueur_modal_submit").setTitle("Recrutement Joueur Aeroz");
             modal.addComponents(
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("epic").setLabel("Pseudo Epic Games").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("age").setLabel("Âge").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("pr").setLabel("Points PR (Fortnite Tracker)").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("platform").setLabel("Plateforme (PC/PS5/Xbox)").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Vos objectifs au sein de HoveX ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Vos objectifs au sein de Aeroz Esports ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
             );
             return i.showModal(modal);
         }
@@ -277,8 +273,8 @@ module.exports = async (client) => {
             writeDB(db);
 
             const currentName = i.member.displayName;
-            if (!currentName.startsWith("HX")) await i.member.setNickname(`HX ${currentName.substring(0, 25)}`).catch(() => {});
-            await i.channel.setName(`hx-${epic}`).catch(() => {});
+            if (!currentName.startsWith("AZ")) await i.member.setNickname(`AZ ${currentName.substring(0, 25)}`).catch(() => {});
+            await i.channel.setName(`az-${epic}`).catch(() => {});
 
             const logChannel = await i.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
             if (logChannel) {
@@ -302,7 +298,7 @@ module.exports = async (client) => {
             const infoRequestEmbed = new EmbedBuilder()
                 .setColor("#3498db")
                 .setTitle("🏆 Rôle Assigné avec succès !")
-                .setDescription(`Félicitations, vous venez d'obtenir le grade **${roleName}** par rapport à vos statistiques.\n\n**Souhaitez-vous obtenir les informations et la fiche technique complète concernant ce rôle ?**`);
+                .setDescription(`Félicitations, vous viens d'obtenir le grade **${roleName}** par rapport à vos statistiques.\n\n**Souhaitez-vous obtenir les informations et la fiche technique complète concernant ce rôle ?**`);
 
             const rowInfoButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("ask_fiche_yes").setLabel("Oui, je veux voir la fiche").setStyle(ButtonStyle.Primary).setEmoji("🧾"),
@@ -326,11 +322,11 @@ module.exports = async (client) => {
                 if (pole === "grinder") {
                     embedFiche.setColor("#3498db")
                         .setTitle("🏅 FICHE TECHNIQUE : PÔLE GRINDER")
-                        .setDescription("Le pôle Grinder est destiné aux joueurs souhaitant grind sérieusement sous les couleurs de Team HoveX.\n\n**L’objectif principal** est de représenter activement la structure à travers votre activité, votre progression et votre présence au sein de la communauté.\n\n**Les joueurs grinders doivent principalement :**\n• Publier régulièrement du contenu lié à leur progression\n• Être actifs sur le serveur Discord\n• Représenter correctement Team HoveX\n• Être investis dans leur grind et leurs objectifs\n• Garder une bonne mentalité et un comportement sérieux\n\n*Plus un joueur montre de l’implication et de la régularité, plus nous pourrons lui proposer des opportunités d’évolution.*\n\nNous mettons également en place différents systèmes de progression afin d’aider les grinders à évoluer.\n\n**Conditions :**\n• Être âgé d’au minimum 13 ans\n• Respecter le règlement\n• Être actif et motivé");
+                        .setDescription("Le pôle Grinder est destiné aux joueurs souhaitant grind sérieusement sous les couleurs de Aeroz Esports.\n\n**L’objectif principal** est de représenter activement la structure à travers votre activité, votre progression et votre présence au sein de la communauté.\n\n**Les joueurs grinders doivent principalement :**\n• Publier régulièrement du contenu lié à leur progression\n• Être actifs sur le serveur Discord\n• Représenter correctement Aeroz Esports\n• Être investis dans leur grind et leurs objectifs\n• Garder une bonne mentalité et un comportement sérieux\n\n*Plus un joueur montre de l’implication et de la régularité, plus nous pourrons lui proposer des opportunités d’évolution.*\n\nNous mettons également en place différents systèmes de progression afin d’aider les grinders à évoluer.\n\n**Conditions :**\n• Étre âgé d’au minimum 13 ans\n• Respecter le règlement\n• Étre actif et motivé");
                 } else if (pole === "espoir") {
                     embedFiche.setColor("#e67e22")
                         .setTitle("⚡ FICHE TECHNIQUE : PÔLE ESPOIR")
-                        .setDescription("Le pôle Esport/Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nNous recherchons des joueurs sérieux, actifs et capables de maintenir une bonne image de Team HoveX.\n\n**Conditions :**\n• Être âgé d’au minimum 13 ans\n• Être régulier et investi\n• Respecter les membres et le staff\n• Avoir un comportement correct et mature");
+                        .setDescription("Le pôle Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nNous recherchons des joueurs sérieux, actifs et capables de maintenir une bonne image de Aeroz Esports.\n\n**Conditions :**\n• Étre âgé d’au minimum 13 ans\n• Étre régulier et investi\n• Respecter les membres et le staff\n• Avoir un comportement correct et mature");
                 }
 
                 await i.channel.send({ embeds: [embedFiche] });
@@ -365,7 +361,6 @@ module.exports = async (client) => {
             if (i.customId === "more_questions_no") {
                 await i.channel.send({ content: "🏁 Procédure terminée. Lancement de la fermeture automatique..." });
                 
-                // Envoi des avis en privé avant fermeture automatique
                 const targetUser = await i.guild.members.fetch(context.userId).catch(() => null);
                 if (targetUser) {
                     const claimedStaff = context.claimedBy || client.user.id;
@@ -377,7 +372,7 @@ module.exports = async (client) => {
                         new ButtonBuilder().setCustomId(`rate_1_${claimedStaff}`).setLabel("1 ⭐").setStyle(ButtonStyle.Danger)
                     );
                     await targetUser.send({
-                        embeds: [new EmbedBuilder().setColor("Gold").setTitle("✨ Votre avis compte — Team HoveX").setDescription("Votre ticket vient d'être pris en charge ou validé. Merci de noter l'efficacité et la réponse apportée par notre équipe à l'aide des boutons ci-dessous :")],
+                        embeds: [new EmbedBuilder().setColor("Gold").setTitle("✨ Votre avis compte — Aeroz Esports").setDescription("Votre ticket vient d'être pris en charge ou validé. Merci de noter l'efficacité et la réponse apportée par notre équipe à l'aide des boutons ci-dessous :")],
                         components: [reviewRow]
                     }).catch(() => {});
                 }
@@ -389,7 +384,7 @@ module.exports = async (client) => {
         // --- D. STAFF & AUDIOVISUEL SUBMITS ---
         if (i.isButton() && i.customId === "form_staff") {
             if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
-            const modal = new ModalBuilder().setCustomId("staff_modal_submit").setTitle("Candidature Équipe HoveX");
+            const modal = new ModalBuilder().setCustomId("staff_modal_submit").setTitle("Candidature Équipe Aeroz");
             modal.addComponents(
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("age").setLabel("Âge").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("xp").setLabel("Vos anciennes expériences").setStyle(TextInputStyle.Paragraph).setRequired(true)),
@@ -410,7 +405,7 @@ module.exports = async (client) => {
             const modal = new ModalBuilder().setCustomId(`audio_submit_${choice}`).setTitle(`Recrutement Pôle - ${choice.toUpperCase()}`);
             modal.addComponents(
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("portfolio").setLabel("Lien du Portfolio").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Pourquoi vouloir produire pour HoveX ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("motivation").setLabel("Pourquoi vouloir produire pour Aeroz Esports ?").setStyle(TextInputStyle.Paragraph).setRequired(true))
             );
             return i.showModal(modal);
         }
@@ -484,9 +479,6 @@ module.exports = async (client) => {
                 return setTimeout(() => i.channel.delete().catch(() => {}), 2000);
             }
 
-            // ==========================================
-            // FIX COMPLET DE LA PARTIE LOGIQUE CLAIM
-            // ==========================================
             if (i.customId === "claim") {
                 await i.deferUpdate();
                 db.tickets[i.channel.id].claimedBy = i.user.id; 
@@ -542,7 +534,7 @@ module.exports = async (client) => {
 };
 
 // =====================================================
-// FONCTION COMPLÈTE : TRANSCRIPT & ARCHIVAGE DU TICKET
+// FONCTION : TRANSCRIPT & ARCHIVAGE DU TICKET
 // =====================================================
 async function generateSystemClose(channel, client, context) {
     const db = readDB();
@@ -551,7 +543,6 @@ async function generateSystemClose(channel, client, context) {
         writeDB(db);
     }
 
-    // Récupération de l'historique complet pour le transcript textuel
     const fetchedMessages = await channel.messages.fetch({ limit: 100 }).catch(() => []);
     let transcriptString = `--- TRANSCRIPT DU TICKET : ${channel.name} ---\nCréé par : ID ${context?.userId || "Inconnu"}\n\n`;
     
