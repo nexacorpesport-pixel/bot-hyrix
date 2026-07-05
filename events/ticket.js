@@ -330,7 +330,7 @@ module.exports = async (client) => {
                 } else if (pole === "espoir") {
                     embedFiche.setColor("#e67e22")
                         .setTitle("⚡ FICHE TECHNIQUE : PÔLE ESPOIR")
-                        .setDescription("Le pôle Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nNous recherchons des joueurs sérieux, actifs et capables de maintenir une bonne image de Team HoveX.\n\n**Conditions :**\n• Être âgé d’au minimum 13 ans\n• Être régulier et investi\n• Respecter les membres et le staff\n• Avoir un comportement correct et mature");
+                        .setDescription("Le pôle Esport/Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nNous recherchons des joueurs sérieux, actifs et capables de maintenir une bonne image de Team HoveX.\n\n**Conditions :**\n• Être âgé d’au minimum 13 ans\n• Être régulier et investi\n• Respecter les membres et le staff\n• Avoir un comportement correct et mature");
                 }
 
                 await i.channel.send({ embeds: [embedFiche] });
@@ -484,6 +484,9 @@ module.exports = async (client) => {
                 return setTimeout(() => i.channel.delete().catch(() => {}), 2000);
             }
 
+            // ==========================================
+            // FIX COMPLET DE LA PARTIE LOGIQUE CLAIM
+            // ==========================================
             if (i.customId === "claim") {
                 await i.deferUpdate();
                 db.tickets[i.channel.id].claimedBy = i.user.id; 
@@ -492,151 +495,97 @@ module.exports = async (client) => {
                 db.stats[i.user.id].closedTickets++;
                 writeDB(db);
 
-                await i.channel.setName(`📍-${i.channel.name}`).catch(() => {});
+                await i.channel.setName(`📌-${i.channel.name}`).catch(() => {});
                 
                 const updatedRow = ActionRowBuilder.from(i.message.components[0]);
-                updatedRow.components[0] = new ButtonBuilder().setCustomId("claimed_disabled").setLabel(`Pris par ${i.member.displayName}`).setStyle(ButtonStyle.Success).setEmoji("✅").setDisabled(true);
-                return i.message.edit({ components: [updatedRow, i.message.components[1]] });
+                updatedRow.components[0] = new ButtonBuilder()
+                    .setCustomId("claimed")
+                    .setLabel(`Pris en charge par ${i.user.username}`)
+                    .setStyle(ButtonStyle.Success)
+                    .setDisabled(true)
+                    .setEmoji("📌");
+
+                await i.message.edit({ components: [updatedRow, i.message.components[1]].filter(Boolean) }).catch(() => {});
+                return i.channel.send({ embeds: [new EmbedBuilder().setColor("Green").setDescription(`📌 Le ticket a été pris en charge par ${i.user}.`)] });
             }
 
             if (i.customId === "close") {
                 await i.deferReply();
-                if (context) {
-                    db.tickets[i.channel.id].status = "closed"; writeDB(db);
-                    await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: false }).catch(() => null);
-
-                    // 📬 ENVOI EXCLUSIF DE LA DEMANDE D'AVIS DANS LES MESSAGES PRIVÉS (MP) DU JOUEUR
-                    const targetUser = await i.guild.members.fetch(context.userId).catch(() => null);
-                    if (targetUser) {
-                        const claimedStaff = context.claimedBy || i.user.id;
-                        const reviewRow = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`rate_5_${claimedStaff}`).setLabel("5 ⭐").setStyle(ButtonStyle.Success),
-                            new ButtonBuilder().setCustomId(`rate_4_${claimedStaff}`).setLabel("4 ⭐").setStyle(ButtonStyle.Primary),
-                            new ButtonBuilder().setCustomId(`rate_3_${claimedStaff}`).setLabel("3 ⭐").setStyle(ButtonStyle.Secondary),
-                            new ButtonBuilder().setCustomId(`rate_2_${claimedStaff}`).setLabel("2 ⭐").setStyle(ButtonStyle.Danger),
-                            new ButtonBuilder().setCustomId(`rate_1_${claimedStaff}`).setLabel("1 ⭐").setStyle(ButtonStyle.Danger)
-                        );
-                        await targetUser.send({
-                            embeds: [new EmbedBuilder().setColor("Gold").setTitle("✨ Votre avis compte — Team HoveX").setDescription("Votre ticket au sein de notre support vient d'être clôturé.\n\nMerci de prendre 10 secondes pour évaluer l'aide apportée par notre Staff en cliquant sur un des boutons ci-dessous :")],
-                            components: [reviewRow]
-                        }).catch(() => console.log("Impossible d'envoyer le MP d'avis (MPs fermés du joueur)."));
-                    }
-                }
-                
-                await i.channel.setName(`🔒-${i.channel.name.replace("📍-", "")}`).catch(() => {});
-
-                const closeConfirmRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Suppression Directe").setStyle(ButtonStyle.Danger).setEmoji("🗑️"),
-                    new ButtonBuilder().setCustomId("cancel_close").setLabel("Réouvrir l'Accès").setStyle(ButtonStyle.Secondary).setEmoji("🔓")
+                const confirmEmbed = new EmbedBuilder().setColor("Orange").setDescription("🔒 **Voulez-vous initier la procédure de fermeture définitive du ticket ?**");
+                const rowConfirm = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Confirmer").setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId("cancel_close").setLabel("Annuler").setStyle(ButtonStyle.Secondary)
                 );
-
-                await i.editReply({ 
-                    embeds: [new EmbedBuilder().setColor("#f1c40f").setTitle("🔒 Ticket Verrouillé").setDescription("L'accès du joueur est révoqué.\nLe salon sera **automatiquement supprimé d'ici 1 heure** s'il n'est pas détruit manuellement.\n\n*La demande de notation a été envoyée directement en Message Privé au joueur.*")],
-                    components: [closeConfirmRow]
-                });
-
-                return setTimeout(async () => {
-                    const dynamicDB = readDB();
-                    if (dynamicDB.tickets[i.channel.id]) {
-                        await generateSystemClose(i.channel, client, dynamicDB.tickets[i.channel.id]);
-                    }
-                }, 60 * 60 * 1000);
+                return i.editReply({ embeds: [confirmEmbed], components: [rowConfirm] });
             }
 
             if (i.customId === "cancel_close") {
-                if (context) {
-                    db.tickets[i.channel.id].status = "open"; writeDB(db);
-                    await i.channel.permissionOverwrites.edit(context.userId, { ViewChannel: true, SendMessages: true }).catch(() => null);
-                }
-                await i.message.delete().catch(() => {});
-                return i.reply({ content: "🔓 Statut réinitialisé. Les accès du salon sont ouverts." });
+                await i.deferUpdate();
+                return i.message.delete().catch(() => {});
             }
 
-            if (i.customId === "delete" || i.customId === "force_close_confirm") {
-                await i.reply({ content: "⏳ Génération du transcript HTML Premium et suppression en cours..." });
+            if (i.customId === "force_close_confirm") {
+                await i.deferUpdate();
                 return await generateSystemClose(i.channel, client, context);
+            }
+
+            if (i.customId === "delete") {
+                await i.reply({ content: "🗑️ Suppression immédiate du salon en cours..." });
+                if (db.tickets[i.channel.id]) {
+                    delete db.tickets[i.channel.id];
+                    writeDB(db);
+                }
+                return setTimeout(() => i.channel.delete().catch(() => {}), 1500);
             }
         }
     });
 };
 
 // =====================================================
-// 🛠️ COMPILATEUR DE LOGS & TRANSCRIPT HTML
+// FONCTION COMPLÈTE : TRANSCRIPT & ARCHIVAGE DU TICKET
 // =====================================================
 async function generateSystemClose(channel, client, context) {
-    try {
-        if (!context) return channel.delete().catch(() => {});
+    const db = readDB();
+    if (db.tickets[channel.id]) {
+        db.tickets[channel.id].status = "closed";
+        writeDB(db);
+    }
 
-        const rawMessages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-        let transcriptHTML = "";
+    // Récupération de l'historique complet pour le transcript textuel
+    const fetchedMessages = await channel.messages.fetch({ limit: 100 }).catch(() => []);
+    let transcriptString = `--- TRANSCRIPT DU TICKET : ${channel.name} ---\nCréé par : ID ${context?.userId || "Inconnu"}\n\n`;
+    
+    const sortedMessages = [...fetchedMessages.values()].reverse();
+    sortedMessages.forEach(msg => {
+        transcriptString += `[${new Date(msg.createdAt).toLocaleString("fr-FR")}] ${msg.author.tag}: ${msg.content}\n`;
+    });
 
-        if (rawMessages) {
-            const sorted = Array.from(rawMessages.values()).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-            
-            transcriptHTML = `
-            <!DOCTYPE html>
-            <html lang="fr">
-            <head>
-                <meta charset="UTF-8">
-                <title>Archives HoveX — ${channel.name}</title>
-                <style>
-                    body { background-color: #1e1f22; color: #dbdee1; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; }
-                    .header { border-bottom: 2px solid #3f4147; padding-bottom: 15px; margin-bottom: 20px; }
-                    .title { color: #ffb347; font-size: 24px; font-weight: bold; }
-                    .meta { color: #949ba4; font-size: 14px; margin-top: 5px; }
-                    .msg-container { display: flex; margin-bottom: 16px; }
-                    .avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #5865f2; margin-right: 16px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; }
-                    .msg-body { display: flex; flex-direction: column; }
-                    .msg-author { font-weight: bold; color: #f2f3f5; font-size: 16px; }
-                    .msg-time { color: #949ba4; font-size: 12px; margin-left: 8px; font-weight: normal; }
-                    .msg-content { color: #dbdee1; font-size: 15px; margin-top: 4px; white-space: pre-wrap; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="title">📄 Archives de Support Team HoveX</div>
-                    <div class="meta">Salon : ${channel.name} | Catégorie : ${context.type.toUpperCase()} | Demandeur ID : ${context.userId}</div>
-                </div>
-            `;
+    const bufferTranscript = Buffer.from(transcriptString, "utf-8");
+    const transcriptFile = new AttachmentBuilder(bufferTranscript, { name: `transcript-${channel.name}.txt` });
 
-            for (const msg of sorted) {
-                if (msg.author.bot && msg.embeds.length === 0 && msg.components.length > 0) continue;
-                const dateStr = new Date(msg.createdTimestamp).toLocaleString("fr-FR");
-                const initial = msg.author.username.substring(0, 2).toUpperCase();
-                
-                transcriptHTML += `
-                <div class="msg-container">
-                    <div class="avatar">${initial}</div>
-                    <div class="msg-body">
-                        <div class="msg-author">${msg.author.tag}<span class="msg-time">${dateStr}</span></div>
-                        <div class="msg-content">${msg.content || "[Contenu Multimédia / Embed Intégré]"}</div>
-                    </div>
-                </div>
-                `;
-            }
-            transcriptHTML += `</body></html>`;
-        }
+    const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
+    if (archiveChannel) {
+        const archiveEmbed = new EmbedBuilder()
+            .setColor("#2c3e50")
+            .setTitle(`📂 Archive Ticket — ${channel.name}`)
+            .addFields(
+                { name: "Demandeur ID", value: `\`${context?.userId || "Inconnu"}\``, inline: true },
+                { name: "Catégorie", value: `${context?.type || "Non définie"}`.toUpperCase(), inline: true },
+                { name: "Messages", value: `\`${context?.messageCount || 0}\``, inline: true }
+            )
+            .setTimestamp();
+        await archiveChannel.send({ embeds: [archiveEmbed], files: [transcriptFile] }).catch(() => {});
+    }
 
-        const buffer = Buffer.from(transcriptHTML, "utf-8");
-        const attachment = new AttachmentBuilder(buffer, { name: `transcript-${channel.name}.html` });
+    const logChannel = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
+    if (logChannel) {
+        logChannel.send({ embeds: [new EmbedBuilder().setColor("Grey").setDescription(`🔒 Le salon textuel \`${channel.name}\` a été fermé et archivé.`)] });
+    }
 
-        const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
-        if (archiveChannel) {
-            const endEmbed = new EmbedBuilder()
-                .setColor("Red")
-                .setTitle(`📁 Archive Complète — ${channel.name}`)
-                .setDescription(`**Détails d'intégration :**\n👤 **Auteur :** <@${context.userId}>\n🏷️ **Type d'Espace :** \`${context.type}\`\n💬 **Total de Messages :** \`${context.messageCount || 0}\``)
-                .setTimestamp();
-            await archiveChannel.send({ embeds: [endEmbed], files: [attachment] });
-        }
-        
-        const db = readDB();
+    if (db.tickets[channel.id]) {
         delete db.tickets[channel.id];
         writeDB(db);
-        
-        return await channel.delete().catch(() => {});
-    } catch (e) {
-        console.error("[CRITICAL TRANSCRIPT EXCEPTION]", e);
-        return channel.delete().catch(() => {});
     }
+
+    return setTimeout(() => channel.delete().catch(() => {}), 3000);
 }
