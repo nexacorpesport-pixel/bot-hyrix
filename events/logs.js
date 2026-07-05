@@ -5,23 +5,21 @@ const {
 } = require("discord.js");
 
 // =========================
-// LOG CHANNELS
+// LOG CHANNELS - AEROZ ESPORTS
 // =========================
 const LOGS = {
-
-    general: "1508156629093187705",
-    moderation: "1508156702514479305",
-    antiraid: "1508156735213404170",
-    members: "1508156766259777686",
-    messages: "1508156801189937302",
-    vocaux: "1508156845003378828",
-    serveur: "1508156874610966739",
-    bot: "1508156905804009472",
-    permissions: "1508156974015975497",
-    tickets: "1508157026491175002",
-    tempvoc: "1508157067461132510",
-    sanctions: "1508157099153297568"
-
+    general: "1523471656343961710",
+    moderation: "1502757141369589830",
+    antiraid: "1522354528626802728",
+    members: "1521930283094638722",
+    messages: "1502756924503097415",
+    vocaux: "1502757392054747356",
+    serveur: "1523471349513850931",
+    bot: "1523471412566949908",
+    permissions: "1522354480631517204",
+    tickets: "1521923500439240968",
+    tempvoc: "1521931122043256892",
+    sanctions: "1502757141369589830"
 };
 
 module.exports = (client) => {
@@ -30,17 +28,13 @@ module.exports = (client) => {
     // FUNCTION SEND LOG
     // =========================
     async function sendLog(channelId, embed) {
-
         try {
-
             const channel = client.channels.cache.get(channelId);
-
             if (!channel) return;
 
             await channel.send({
                 embeds: [embed]
             });
-
         } catch (err) {
             console.log("❌ Erreur logs :", err);
         }
@@ -50,7 +44,6 @@ module.exports = (client) => {
     // MEMBER JOIN
     // =========================
     client.on("guildMemberAdd", async (member) => {
-
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("✅ Membre rejoint")
@@ -71,6 +64,7 @@ module.exports = (client) => {
                     value: `<t:${parseInt(member.user.createdTimestamp / 1000)}:R>`
                 }
             )
+            .setFooter({ text: "Aeroz Esports • Système de Suivi" })
             .setTimestamp();
 
         sendLog(LOGS.members, embed);
@@ -80,7 +74,6 @@ module.exports = (client) => {
     // MEMBER LEAVE
     // =========================
     client.on("guildMemberRemove", async (member) => {
-
         const embed = new EmbedBuilder()
             .setColor("Red")
             .setTitle("❌ Membre parti")
@@ -97,6 +90,7 @@ module.exports = (client) => {
                     inline: true
                 }
             )
+            .setFooter({ text: "Aeroz Esports • Système de Suivi" })
             .setTimestamp();
 
         sendLog(LOGS.members, embed);
@@ -106,7 +100,6 @@ module.exports = (client) => {
     // MESSAGE DELETE
     // =========================
     client.on("messageDelete", async (message) => {
-
         if (!message.guild) return;
         if (message.author?.bot) return;
 
@@ -138,10 +131,8 @@ module.exports = (client) => {
     // MESSAGE UPDATE
     // =========================
     client.on("messageUpdate", async (oldMessage, newMessage) => {
-
         if (!oldMessage.guild) return;
         if (oldMessage.author?.bot) return;
-
         if (oldMessage.content === newMessage.content) return;
 
         const embed = new EmbedBuilder()
@@ -170,7 +161,6 @@ module.exports = (client) => {
     // CHANNEL CREATE
     // =========================
     client.on("channelCreate", async (channel) => {
-
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("📁 Salon créé")
@@ -195,7 +185,6 @@ module.exports = (client) => {
     // CHANNEL DELETE
     // =========================
     client.on("channelDelete", async (channel) => {
-
         const embed = new EmbedBuilder()
             .setColor("Red")
             .setTitle("🗑️ Salon supprimé")
@@ -220,7 +209,6 @@ module.exports = (client) => {
     // CHANNEL UPDATE
     // =========================
     client.on("channelUpdate", async (oldChannel, newChannel) => {
-
         if (oldChannel.name === newChannel.name) return;
 
         const embed = new EmbedBuilder()
@@ -245,7 +233,6 @@ module.exports = (client) => {
     // ROLE CREATE
     // =========================
     client.on("roleCreate", async (role) => {
-
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("🎭 Rôle créé")
@@ -270,7 +257,6 @@ module.exports = (client) => {
     // ROLE DELETE
     // =========================
     client.on("roleDelete", async (role) => {
-
         const embed = new EmbedBuilder()
             .setColor("Red")
             .setTitle("🗑️ Rôle supprimé")
@@ -295,7 +281,6 @@ module.exports = (client) => {
     // ROLE UPDATE
     // =========================
     client.on("roleUpdate", async (oldRole, newRole) => {
-
         if (oldRole.name === newRole.name) return;
 
         const embed = new EmbedBuilder()
@@ -320,14 +305,11 @@ module.exports = (client) => {
     // VOICE JOIN/LEAVE
     // =========================
     client.on("voiceStateUpdate", async (oldState, newState) => {
-
         const member = newState.member || oldState.member;
-
         if (!member) return;
 
         // JOIN
         if (!oldState.channel && newState.channel) {
-
             const embed = new EmbedBuilder()
                 .setColor("Green")
                 .setTitle("🔊 Vocal rejoint")
@@ -348,7 +330,6 @@ module.exports = (client) => {
 
         // LEAVE
         if (oldState.channel && !newState.channel) {
-
             const embed = new EmbedBuilder()
                 .setColor("Red")
                 .setTitle("📤 Vocal quitté")
@@ -372,7 +353,6 @@ module.exports = (client) => {
     // BAN
     // =========================
     client.on("guildBanAdd", async (ban) => {
-
         const embed = new EmbedBuilder()
             .setColor("DarkRed")
             .setTitle("🔨 Membre banni")
@@ -395,7 +375,6 @@ module.exports = (client) => {
     // UNBAN
     // =========================
     client.on("guildBanRemove", async (ban) => {
-
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("✅ Membre débanni")
@@ -418,7 +397,6 @@ module.exports = (client) => {
     // EMOJI CREATE
     // =========================
     client.on("emojiCreate", async (emoji) => {
-
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("😀 Emoji ajouté")
@@ -432,7 +410,6 @@ module.exports = (client) => {
     // EMOJI DELETE
     // =========================
     client.on("emojiDelete", async (emoji) => {
-
         const embed = new EmbedBuilder()
             .setColor("Red")
             .setTitle("🗑️ Emoji supprimé")
@@ -446,9 +423,7 @@ module.exports = (client) => {
     // GUILD UPDATE
     // =========================
     client.on("guildUpdate", async (oldGuild, newGuild) => {
-
         if (oldGuild.name !== newGuild.name) {
-
             const embed = new EmbedBuilder()
                 .setColor("Blue")
                 .setTitle("⚙️ Serveur modifié")
@@ -472,11 +447,12 @@ module.exports = (client) => {
     // BOT READY LOG
     // =========================
     client.once("clientReady", async () => {
-
+        console.log("[🛡️ LOGS] Central Aeroz Esports opérationnelle !");
+        
         const embed = new EmbedBuilder()
             .setColor("Green")
-            .setTitle("🤖 Bot démarré")
-            .setDescription("Tous les systèmes de logs sont actifs.")
+            .setTitle("🤖 Bot Aeroz Esports démarré")
+            .setDescription("Tous les flux d'audit et systèmes de logs d'élite sont actifs.")
             .setTimestamp();
 
         sendLog(LOGS.bot, embed);
