@@ -55,7 +55,6 @@ const client = new Client({
 // IMPORT SYSTEMS & EVENTS
 // =========================
 const antiSpam = require("./events/antiSpam");
-const onboarding = require("./events/onboarding");
 const ticketSystem = require("./events/ticket");
 const voiceTemp = require("./events/voiceTemp");
 const moderation = require("./events/moderation");
@@ -117,7 +116,6 @@ client.once("ready", async () => {
         antiSpam(client);
         moderation(client);
         logsSystem(client);
-        onboarding(client);
         antiNuke(client); 
         bienvenue(client);
         coaching(client);
