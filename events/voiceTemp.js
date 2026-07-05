@@ -22,7 +22,7 @@ const TEMP_CATEGORY = "1501626005662597121";
 const LOGS_CHANNEL = "1521931122043256892";
 
 // Rôles Staff autorisés à bypasser les salons privés et recevoir les alertes
-const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"]; // Mets ici les IDs de tes rôles Staff (Modo, Admin, etc.)
+const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"]; 
 
 // =========================================
 // STOCKAGE LOCAL & BASES DE DONNÉES
@@ -140,9 +140,9 @@ module.exports = (client) => {
                 // Panneau d'administration complet
                 const embed = new EmbedBuilder()
                     .setColor("#2b2d31")
-                    .setTitle("🎧 Interface Salon Vocal Privé")
+                    .setTitle("🎧 Interface Salon Vocal Privé — Aeroz Esports")
                     .setDescription(`Bienvenue dans ton salon éphémère, ${member} !\n\nUtilise les boutons et le menu déroulant ci-dessous pour gérer les accès et la capacité de ton salon en temps réel.`)
-                    .setFooter({ text: "Pyxar Voice System" });
+                    .setFooter({ text: "Aeroz Automations • Gestion Vocale" });
 
                 const row1 = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId("vc_open").setLabel("Ouvrir").setEmoji("🔓").setStyle(ButtonStyle.Success),
@@ -299,18 +299,18 @@ module.exports = (client) => {
                             userLimit: channelData.userLimit
                         };
                         writeDB(db);
-                        return interaction.reply({ content: "💾 **Sauvegarde réussie !** Vos préférences actuelles de salon ont été associées à votre compte pour vos prochaines sessions.", ephemeral: true });
+                        return interaction.reply({ content: "💾 **Sauvegarde réussie !** Vos préférences actuelles de salon ont été associées à votre compte Aeroz Esports pour vos prochaines sessions.", ephemeral: true });
 
                     case "vc_report_staff":
                         const staffLogChan = await interaction.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
                         if (staffLogChan) {
                             const alertEmbed = new EmbedBuilder()
                                 .setColor("Red")
-                                .setTitle("🚨 ALERTE MODÉRATION - VOCAL")
+                                .setTitle("🚨 ALERTE MODÉRATION - VOCAL AEROZ")
                                 .setDescription(`Le membre ${interaction.user} demande une assistance urgente dans son salon vocal éphémère.\n\n📍 **Lien vers le salon :** ${voiceChannel}`);
                             
                             await staffLogChan.send({ content: `@here ⚠️ Demande d'aide active !`, embeds: [alertEmbed] });
-                            return interaction.reply({ content: "🛡️ **Demande transmise !** L'équipe de modération a reçu une notification flash pour venir intervenir.", ephemeral: true });
+                            return interaction.reply({ content: "🛡️ **Demande transmise !** L'équipe de modération Aeroz Esports a reçu une notification flash pour venir intervenir.", ephemeral: true });
                         }
                         return interaction.reply({ content: "❌ Erreur lors de la liaison avec le canal de modération.", ephemeral: true });
                 }
