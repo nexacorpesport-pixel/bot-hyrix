@@ -9,7 +9,7 @@ const {
 const invitesCache = new Map();
 
 module.exports = (client) => {
-    console.log("[👋 ONBOARDING] Module d'accueil épuré avec boutons de redirection opérationnel.");
+    console.log("[👋 ONBOARDING] Module d'accueil épuré avec boutons de redirection opérationnel pour Aeroz Esports.");
 
     const GUILD_ID = "1501625824028266676";
     
@@ -102,7 +102,7 @@ module.exports = (client) => {
 
             const welcomeEmbed = new EmbedBuilder()
                 .setColor(COLOR_WHITE)
-                .setTitle(`🔥 BIENVENUE CHEZ TEAM HOVEX 🔥`)
+                .setTitle(`🔥 BIENVENUE CHEZ AEROZ ESPORTS 🔥`)
                 .setDescription(
                     `Bienvenue ${member} ! Installe-toi confortablement.\n\n` +
                     `🏆 Tu es notre **${memberCount}e** membre.\n` +
@@ -113,7 +113,7 @@ module.exports = (client) => {
                     `• Tu veux nous rejoindre ? Regarde les [🎮 Critères de Recrutement](${LINKS.CRITERES}).`
                 )
                 .setThumbnail(LOGO_URL)
-                .setFooter({ text: `Team HoveX • Compteur : ${memberCount} membres`, iconURL: guild.iconURL({ dynamic: true }) })
+                .setFooter({ text: `Aeroz Esports • Compteur : ${memberCount} membres`, iconURL: guild.iconURL({ dynamic: true }) })
                 .setTimestamp();
 
             // Rangée de boutons
@@ -143,7 +143,7 @@ module.exports = (client) => {
             const logInviteChannel = await client.channels.fetch(CHANNELS.LOGS_INVITES).catch(() => null);
             if (logInviteChannel) {
                 const infoInviteEmbed = new EmbedBuilder()
-                    .setColor("#ffc0cb") // Rose Hexa valide 🌸 (Plus d'erreur "Pink")
+                    .setColor("#ffc0cb") // Rose Hexa valide 🌸
                     .setTitle("🎯 Tracking d'Invitation")
                     .setDescription(`**Joueur arrivé :** ${member.user.tag}\n**Inviteur :** ${inviterUser.tag} (\`${inviterUser.id}\`)\n**Score de l'inviteur :** \`${inviteUses}\` utilisations au total.`)
                     .setTimestamp();
