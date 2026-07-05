@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 
 // =====================================================
-// ⚙️ PARAMÈTRES DE SÉCURITÉ ULTRA-AVANCÉS
+// ⚙️ PARAMÈTRES DE SÉCURITÉ ULTRA-AVANCÉS AEROZ
 // =====================================================
 const MESSAGE_LIMIT = 5;
 const MESSAGE_INTERVAL = 6 * 1000; 
@@ -29,7 +29,7 @@ if (fs.existsSync(STATE_DB_PATH)) {
     try {
         crisisDatabase = JSON.parse(fs.readFileSync(STATE_DB_PATH, "utf-8"));
     } catch (e) {
-        console.error("[🛡️ SECURITY] Erreur de lecture de l'état de crise, réinitialisation...");
+        console.error("[🛡️ AEROZ SECURITY] Erreur de lecture de l'état de crise, réinitialisation...");
     }
 }
 
@@ -37,7 +37,7 @@ const saveCrisisDatabase = () => {
     try {
         fs.writeFileSync(STATE_DB_PATH, JSON.stringify(crisisDatabase, null, 2), "utf-8");
     } catch (e) {
-        console.error("[🛡️ SECURITY] Erreur d'écriture de l'état de crise.");
+        console.error("[🛡️ AEROZ SECURITY] Erreur d'écriture de l'état de crise.");
     }
 };
 
@@ -78,7 +78,7 @@ function calculateSimilarity(str1, str2) {
 
 module.exports = (client) => {
 
-    console.log("[🛡️ ULTRA SECURITY V3] Forteresse anti-spam globale et d'analyse comportementale armée.");
+    console.log("[🛡️ AEROZ SECURITY V3] Forteresse anti-spam globale et d'analyse comportementale armée.");
 
     const LOGS_CHANNEL_ID = "1522354627633217597";
     const CEO_ROLE_ID = "1501625944148934758";
@@ -89,7 +89,7 @@ module.exports = (client) => {
 
         const alertEmbed = new EmbedBuilder()
             .setColor("Red")
-            .setTitle("🚨 CRITICAL ALERT : TENTATIVE DE RAID / SPAM EXTRÊME 🚨")
+            .setTitle("🚨 ALERTE CRITIQUE : TENTATIVE DE RAID / SPAM EXTRÊME AEROZ 🚨")
             .setDescription(`Le salon ${violatedChannel} a été **VERROUILLÉ AUTOMATIQUEMENT**.\n\n**Cible neutralisée :** ${offender} (\`${offender.id}\`)\n**Détecté pour :** ${reasonText}\n\n🛡️ **Contrôle réservé au CEO :** Veuillez agir via les boutons ci-dessous.`)
             .setTimestamp();
 
@@ -120,7 +120,7 @@ module.exports = (client) => {
         const newlineCount = (message.content.match(/\n/g) || []).length;
         if (newlineCount > MAX_NEWLINES) {
             await message.delete().catch(() => {});
-            message.channel.send(`⚠️ ${message.author}, les messages contenant trop de sauts de ligne sont interdits.`).then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+            message.channel.send(`⚠️ ${message.author}, les messages contenant trop de sauts de ligne sont interdits chez Aeroz Esports.`).then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
             return true;
         }
 
@@ -175,7 +175,7 @@ module.exports = (client) => {
             crisisDatabase.lockedChannels = [];
             LOCKED_CHANNELS.clear();
             saveCrisisDatabase();
-            return message.reply("🔓 **Forteresse réinitialisée.** Le Lockdown global et les blocages locaux sont levés.");
+            return message.reply("🔓 **Forteresse Aeroz réinitialisée.** Le Lockdown global et les blocages locaux sont levés.");
         }
 
         const now = Date.now();
@@ -331,7 +331,7 @@ module.exports = (client) => {
                 if (logChannel) {
                     const ghostEmbed = new EmbedBuilder()
                         .setColor("Yellow")
-                        .setTitle("👻 ALERT : PING FANTÔME (GHOST PING)")
+                        .setTitle("👻 ALERTE : PING FANTÔME (GHOST PING)")
                         .setDescription(`**Auteur :** ${message.author} (\`${message.author.id}\`)\n**Salon :** ${message.channel}\n**Contenu supprimé :**\n\`\`\`${message.content || "[Aucun texte / Image]"}\`\`\``)
                         .setTimestamp();
                     logChannel.send({ embeds: [ghostEmbed] }).catch(() => {});
@@ -387,7 +387,7 @@ module.exports = (client) => {
             const updateEmbed = EmbedBuilder.from(interaction.message.embeds[0])
                 .setColor("Green")
                 .setTitle("🔓 SALON DE CHAT RÉACTIVÉ")
-                .setDescription(`Le salon <#${targetChannelId}> a été déverrouillé par le CEO : ${interaction.user}.`);
+                .setDescription(`Le salon <#${targetChannelId}> a été déverrouillé par le CEO d'Aeroz Esports : ${interaction.user}.`);
 
             await interaction.update({ embeds: [updateEmbed], components: [] }).catch(() => {});
             const targetChannel = await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
@@ -400,7 +400,7 @@ module.exports = (client) => {
 
             const updateEmbed = EmbedBuilder.from(interaction.message.embeds[0])
                 .setColor("DarkRed")
-                .setTitle("🛑 ÉTAT D'URGENCE : LOCKDOWN APPLIQUÉ")
+                .setTitle("🛑 ÉTAT D'URGENCE : LOCKDOWN AEROZ APPLIQUÉ")
                 .setDescription(`⚠️ **Le CEO ${interaction.user} a activé l'isolement complet du serveur.**\nTous les chats non-staff et connexions vocales sont gelés électroniquement.`);
 
             await interaction.update({ embeds: [updateEmbed], components: [] }).catch(() => {});
