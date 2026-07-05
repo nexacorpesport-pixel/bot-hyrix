@@ -19,7 +19,7 @@ if (fs.existsSync(DB_PATH)) {
     try {
         backupDatabase = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     } catch (e) {
-        console.error("[👑 FORTERESSE] Erreur de lecture de la base de données locale, réinitialisation...");
+        console.error("[👑 AEROZ] Erreur de lecture de la base de données locale, réinitialisation...");
     }
 }
 
@@ -27,7 +27,7 @@ const saveDatabase = () => {
     try {
         fs.writeFileSync(DB_PATH, JSON.stringify(backupDatabase, null, 2), "utf-8");
     } catch (e) {
-        console.error("[👑 FORTERESSE] Erreur d'écriture dans la base de données locale.");
+        console.error("[👑 AEROZ] Erreur d'écriture dans la base de données locale.");
     }
 };
 
@@ -43,7 +43,7 @@ let globalJoinTimestamps = [];
 let FLUX_RAID_ALERT_ACTIVE = false;
 
 // Configuration du Mode Bunker Récupéré
-const BUNKER_SECRET_KEY = "PX-99X-BUNK-7421-ZOR";
+const BUNKER_SECRET_KEY = "AZ-99X-BUNK-7421-ZOR";
 const BUNKER_CATEGORY_ID = "1522353418226896997"; // ID fourni
 const BUNKER_ROLE_ID = "1522354308635689040";
 
@@ -53,7 +53,7 @@ const actionTimestamps = new Map();
 
 module.exports = (client) => {
 
-    console.log("[👑 FORTERESSE DIVINE] Architecture Bunker Lourde et Système Anti-Nuke de Niveau Industriel Armés.");
+    console.log("[👑 AEROZ SECURITY] Architecture Bunker Lourde et Système Anti-Nuke de Niveau Industriel Armés.");
 
     const WHITELIST_CEO_ID = "1501625944148934758";
     const SUSPECT_ROLE_ID = "1522353482252947508"; // ID fourni
@@ -83,7 +83,7 @@ module.exports = (client) => {
         await member.roles.remove(rolesToRemove, `Sécurité Anti-Nuke : ${reason}`).catch(() => {});
 
         const emergencyEmbed = new EmbedBuilder()
-            .setColor("#8b0000") // Corrigé : Code Hexa pour Rouge Foncé 🔴
+            .setColor("#8b0000") // Code Hexa pour Rouge Foncé 🔴
             .setTitle("🚨 DESTITUTION IMMÉDIATE DU COMPTE STAFF 🚨")
             .setDescription(`**Auteur :** ${member.user} (\`${member.id}\`)\n**Raison :** ${reason}\n\n🔒 **Mesure :** Quarantaine totale appliquée par retrait des rôles.`);
 
@@ -135,7 +135,7 @@ module.exports = (client) => {
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             if (urlRegex.test(message.content)) {
                 await message.delete().catch(() => {});
-                return message.channel.send(`⚠️ ${message.author}, le partage de liens et de médias externes est rigoureusement interdit pendant le protocole Bunker.`)
+                return message.channel.send(`⚠️ ${message.author}, le partage de liens et de médias externes est rigoureusement interdit pendant le protocole Bunker d'Aeroz Esports.`)
                     .then(m => setTimeout(() => m.delete().catch(() => {}), 4000));
             }
         }
@@ -155,8 +155,8 @@ module.exports = (client) => {
                 await message.delete().catch(() => {});
                 
                 const bunkerEmbed = new EmbedBuilder()
-                    .setColor("#8b0000") // Corrigé : Code Hexa pour Rouge Foncé 🔴
-                    .setTitle("🛡️ ÉTAT DE SIÈGE : ENCLENCHEMENT DU BUNKER")
+                    .setColor("#8b0000") // Code Hexa pour Rouge Foncé 🔴
+                    .setTitle("🛡️ ÉTAT DE SIÈGE : ENCLENCHEMENT DU BUNKER AEROZ")
                     .setDescription(`🔒 **La catégorie de confinement <#${BUNKER_CATEGORY_ID}> est sous protection militaire.**\n\n⚡ **Contrôles stricts appliqués :**\n• Révocation définitive de toutes les invitations du serveur.\n• Nettoyage et déconnexion instantanée des salons vocaux.\n• Injection automatique du rôle de restriction à tous les membres.\n• Chasse et blocage dynamique des flux HTTP/HTTPS.`);
                 sendLog(CHANNELS.ANTI_RAID, bunkerEmbed);
 
@@ -193,8 +193,8 @@ module.exports = (client) => {
                 await message.delete().catch(() => {});
                 
                 const bunkerOffEmbed = new EmbedBuilder()
-                    .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
-                    .setTitle("🔓 NORMALISATION DU SERVEUR : FIN DU SIÈGE")
+                    .setColor("#2ecc71") // Vert Hexa stable 🟢
+                    .setTitle("🔓 NORMALISATION DU SERVEUR : FIN DU SIÈGE AEROZ")
                     .setDescription("♻️ Retrait globalisé du rôle de confinement et réouverture ordonnée de la structure.");
                 sendLog(CHANNELS.ANTI_RAID, bunkerOffEmbed);
 
@@ -259,7 +259,7 @@ module.exports = (client) => {
         backupDatabase.channels[channel.id] = {
             name: channel.name,
             type: channel.type,
-            parentId: channel.parentId,
+            parent: channel.parentId,
             position: channel.position,
             permissionOverwrites: channel.permissionOverwrites.cache.map(o => ({ id: o.id, type: o.type, allow: o.allow.bitfield.toString(), deny: o.deny.bitfield.toString() }))
         };
@@ -283,7 +283,7 @@ module.exports = (client) => {
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
+            .setColor("#e67e22") // Orange Hexa stable 🟠
             .setTitle("🗑️ Salon Supprimé")
             .setDescription(`**Nom :** \`#${channel.name}\`\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_SALONS, logEmbed);
@@ -309,7 +309,7 @@ module.exports = (client) => {
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
+            .setColor("#2ecc71") // Vert Hexa stable 🟢
             .setTitle("➕ Salon Créé")
             .setDescription(`**Salon :** ${channel}\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_SALONS, logEmbed);
@@ -330,8 +330,8 @@ module.exports = (client) => {
         if (globalJoinTimestamps.length >= RAID_FLUX_LIMIT && !FLUX_RAID_ALERT_ACTIVE) {
             FLUX_RAID_ALERT_ACTIVE = true;
             const alertFluxEmbed = new EmbedBuilder()
-                .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
-                .setTitle("⚠️ SEUILS DE FLUX ATTEINTS : ATTAQUE SOUÇONNÉE")
+                .setColor("#e67e22") // Orange Hexa stable 🟠
+                .setTitle("⚠️ SEUILS DE FLUX ATTEINTS : ATTAQUE SOUPÇONNÉE")
                 .setDescription(`Une grappe de \`${globalJoinTimestamps.length}\` connexions simultanées détectée.\n\n🛡️ Activation du verrouillage systématique par étiquette **Suspect**.`);
             sendLog(CHANNELS.ANTI_RAID, alertFluxEmbed);
         }
@@ -362,7 +362,7 @@ module.exports = (client) => {
             else if (FLUX_RAID_ALERT_ACTIVE) activeReason = "Protection de Flux Actif (Alerte Raid)";
 
             const suspectEmbed = new EmbedBuilder()
-                .setColor("#e67e22") // Corrigé : Orange Hexa stable 🟠
+                .setColor("#e67e22") // Orange Hexa stable 🟠
                 .setTitle("🔍 ISOLEMENT AUTOMATIQUE D'UN NOUVEAU MEMBRE")
                 .setDescription(`**Membre :** ${member.user} (\`${member.id}\`)\n**Raison :** ${activeReason}`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
@@ -391,7 +391,7 @@ module.exports = (client) => {
         saveDatabase();
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#e74c3c") // Corrigé : Rouge Hexa stable 🔴
+            .setColor("#e74c3c") // Rouge Hexa stable 🔴
             .setTitle("🗑️ Rôle Supprimé")
             .setDescription(`**Rôle :** \`@${role.name}\`\n**Auteur :** <@${executor.id}>`);
         sendLog(CHANNELS.LOGS_ROLES, logEmbed);
@@ -428,13 +428,13 @@ module.exports = (client) => {
         if (interaction.customId === "nuke_clear_flux") {
             if (interaction.user.id !== WHITELIST_CEO_ID) return;
             FLUX_RAID_ALERT_ACTIVE = false;
-            // Corrigé : Remplacement d'ephemeral par flags pour effacer le warning
+            // Remplacement d'ephemeral par flags pour effacer le warning
             return interaction.reply({ content: "🔓 Alerte de flux réinitialisée.", flags: [MessageFlags.Ephemeral] });
         }
 
         if (interaction.customId !== "nuke_restore_all") return;
         if (interaction.user.id !== WHITELIST_CEO_ID) {
-            // Corrigé : Remplacement d'ephemeral par flags
+            // Remplacement d'ephemeral par flags
             return interaction.reply({ content: "❌ Autorisation refusée.", flags: [MessageFlags.Ephemeral] });
         }
 
@@ -467,8 +467,8 @@ module.exports = (client) => {
         saveDatabase();
 
         const successEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-            .setColor("#2ecc71") // Corrigé : Vert Hexa stable 🟢
-            .setTitle("✅ PROTOCOLE DE RESTAURATION EXÉCUTÉ")
+            .setColor("#2ecc71") // Vert Hexa stable 🟢
+            .setTitle("✅ PROTOCOLE DE RESTAURATION AEROZ EXÉCUTÉ")
             .setDescription("Les configurations et structures sauvegardées localement ont été injectées et restaurées avec succès.");
         await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
     });
