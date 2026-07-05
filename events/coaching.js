@@ -65,10 +65,10 @@ async function updateDashboard(client) {
     if (!channel) return;
 
     const embed = new EmbedBuilder()
-        .setTitle("📅 TABLEAU DE BORD DES COACHINGS ─ HOVEX")
+        .setTitle("📅 TABLEAU DE BORD DES COACHINGS ─ AEROZ ESPORTS")
         .setColor("#ff007f")
         .setTimestamp()
-        .setFooter({ text: "Système automatique d'élite • Team HoveX" });
+        .setFooter({ text: "Système automatique d'élite • Aeroz Esports" });
 
     let description = "### 📋 Liste des séances planifiées\n\n";
 
@@ -166,7 +166,7 @@ function startVoiceChecker(client) {
 }
 
 module.exports = async (client) => {
-    console.log("[🎯 COACHING] Module Élite Initialisé avec succès !");
+    console.log("[🎯 COACHING] Module Élite Initialisé avec succès pour Aeroz Esports !");
     startVoiceChecker(client);
 
     client.on("messageCreate", async (message) => {
@@ -176,7 +176,7 @@ module.exports = async (client) => {
             await message.delete();
 
             const embed = new EmbedBuilder()
-                .setTitle("🎯 PÔLE PERFORMANCE & GRIND ─ TEAM HOVEX")
+                .setTitle("🎯 PÔLE PERFORMANCE & GRIND ─ AEROZ ESPORTS")
                 .setDescription(
                     "Prêt à passer au niveau supérieur et perfectionner ton gameplay ?\n\n" +
                     "⚠️ **Règles importantes :**\n" +
@@ -277,7 +277,7 @@ module.exports = async (client) => {
                 if (action === "deny") {
                     resetQuota(userId);
                     const targetUser = await client.users.fetch(userId).catch(() => null);
-                    if (targetUser) await targetUser.send("❌ Ta demande de coaching pour la Team HoveX a été refusée.").catch(() => null);
+                    if (targetUser) await targetUser.send("❌ Ta demande de coaching pour Aeroz Esports a été refusée.").catch(() => null);
                     await interaction.message.delete().catch(() => null);
                     return interaction.reply({ content: "Candidature refusée.", flags: [MessageFlags.Ephemeral] });
                 }
@@ -401,7 +401,7 @@ module.exports = async (client) => {
                 const targetUser = await client.users.fetch(userId).catch(() => null);
                 if (targetUser) {
                     const dmEmbed = new EmbedBuilder()
-                        .setTitle("📝 BILAN DE TON COACHING ─ HOVEX")
+                        .setTitle("📝 BILAN DE TON COACHING ─ AEROZ ESPORTS")
                         .setDescription(`Voici le compte-rendu écrit par ton coach <@${session.coachId}> :\n\n${summaryText}`)
                         .setColor("#ff007f");
                     await targetUser.send({ embeds: [dmEmbed] }).catch(() => null);
@@ -455,7 +455,7 @@ module.exports = async (client) => {
                 if (avisChannel) {
                     const stars = "⭐".repeat(rating);
                     const avisEmbed = new EmbedBuilder()
-                        .setTitle("⭐ NOUVEL AVIS COACHING ─ TEAM HOVEX")
+                        .setTitle("⭐ NOUVEL AVIS COACHING ─ AEROZ ESPORTS")
                         .addFields(
                             { name: "👤 Joueur", value: `<@${interaction.user.id}>`, inline: true },
                             { name: "🎓 Coach", value: `<@${coachId}>`, inline: true },
