@@ -57,7 +57,7 @@ const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
 const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
-const tournamentSystem = require("./commands/tournament"); // 🏆 Ajout du système de tournoi dynamique
+const tournamentSystem = require("./events/tournament");
 
 const GUILD_ID = "1501625824028266676";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
