@@ -9,6 +9,7 @@ const {
     ActivityType
 } = require("discord.js");
 
+// Initialisation Base de données Coaching
 const COACHING_DB_PATH = path.join(__dirname, "./data/coaching_database.json");
 if (!fs.existsSync(path.dirname(COACHING_DB_PATH))) {
     fs.mkdirSync(path.dirname(COACHING_DB_PATH), { recursive: true });
@@ -56,6 +57,7 @@ const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
 const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
+const tournamentSystem = require("./commands/tournament"); // 🏆 Ajout du système de tournoi dynamique
 
 const GUILD_ID = "1501625824028266676";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
@@ -93,6 +95,7 @@ async function updateStatus() {
 client.once("ready", async () => {
     console.log(`✅ Logged as ${client.user.tag}`);
     try {
+        // Chargement des modules existants
         ticketSystem(client);
         voiceTemp(client);
         antiSpam(client);
@@ -101,12 +104,15 @@ client.once("ready", async () => {
         antiNuke(client); 
         bienvenue(client);
         coaching(client);
+        
+        // 🏆 Chargement du système de tournoi
+        tournamentSystem(client);
 
         console.log("✅ Tous les systèmes Aeroz Esports chargés avec succès.");
 
         setTimeout(async () => {
             await updateStatus();
-            setInterval(updateStatus, 30000);
+            await setInterval(updateStatus, 30000);
         }, 2000);
     } catch (err) {
         console.log("❌ Erreur chargement systèmes :", err);
