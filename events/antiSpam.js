@@ -21,6 +21,9 @@ const REACTION_INTERVAL = 3000;
 const MAX_EMOJIS_PER_MSG = 8;     // Max 8 émojis par message (Anti-Emoji Flood)
 const MAX_SPOILERS_PER_MSG = 6;   // Max 6 blocs de spoilers (||) par message
 
+// Identifiant du salon Conférence à immuniser
+const CONFERENCE_CHANNEL_ID = "1522934627461759067";
+
 // Chemin pour la persistance locale de l'état de crise (Lockdown)
 const STATE_DB_PATH = path.join(__dirname, "lockdown_state_db.json");
 
@@ -169,6 +172,9 @@ module.exports = (client) => {
     client.on("messageCreate", async (message) => {
         if (!message.guild) return;
 
+        // 🛡️ IMMUNITÉ DU SALON CONFÉRENCE POUR LE TOURNOI
+        if (message.channel.id === CONFERENCE_CHANNEL_ID) return;
+
         if (message.content === "!emergency-off") {
             if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator) && !message.member.roles.cache.has(CEO_ROLE_ID)) return;
             crisisDatabase.globalLockdown = false;
@@ -280,6 +286,9 @@ module.exports = (client) => {
     client.on("messageUpdate", async (oldMessage, newMessage) => {
         if (!newMessage.guild || newMessage.author.bot) return;
 
+        // 🛡️ IMMUNITÉ DU SALON CONFÉRENCE POUR LE TOURNOI
+        if (newMessage.channel.id === CONFERENCE_CHANNEL_ID) return;
+
         const member = newMessage.member;
         if (!member || member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.has(CEO_ROLE_ID)) return;
 
@@ -314,6 +323,9 @@ module.exports = (client) => {
     client.on("messageDelete", async (message) => {
         if (!message.guild || message.author.bot) return;
 
+        // 🛡️ IMMUNITÉ DU SALON CONFÉRENCE POUR LE TOURNOI
+        if (message.channel.id === CONFERENCE_CHANNEL_ID) return;
+
         const now = Date.now();
         const lifeTime = now - message.createdTimestamp;
 
@@ -347,6 +359,9 @@ module.exports = (client) => {
         if (user.bot) return;
         const guild = reaction.message.guild;
         if (!guild) return;
+
+        // 🛡️ IMMUNITÉ DU SALON CONFÉRENCE POUR LE TOURNOI
+        if (reaction.message.channel.id === CONFERENCE_CHANNEL_ID) return;
 
         const member = await guild.members.fetch(user.id).catch(() => null);
         if (!member || member.permissions.has(PermissionsBitField.Flags.Administrator) || member.roles.cache.has(CEO_ROLE_ID)) return;
