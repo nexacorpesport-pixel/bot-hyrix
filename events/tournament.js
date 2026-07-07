@@ -19,6 +19,7 @@ const ARBRE_CHANNEL_ID = "1523811049160179784";
 const LOGS_CHANNEL_ID = "1523811079409500200";         
 const LINK_EVENT = "https://discord.com/events/1501625824028266676/1523813643870015558"; 
 
+// CONFIGURATION DU CHOC DES TITANS (TÊTE D'AFFICHE OBLIGATOIRE MATCH #1)
 const HEADLINER_1 = "1031138060445945866"; // Rio
 const HEADLINER_2 = "1264673063350304830"; // Yaska
 
@@ -34,7 +35,7 @@ function readDB() {
         return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     } catch (err) {
         console.error("[TOURNAMENT DB READ ERROR]", err);
-        return { active: false, phase: "Inscriptions", treeMessageId: null, participants: [], matchups: [], history: [] };
+        return { active: false, phase: "Préparation", treeMessageId: null, participants: [], matchups: [], history: [] };
     }
 }
 
@@ -101,7 +102,7 @@ function saveToHistory(db) {
 module.exports = (client) => {
 
     client.on("ready", async () => {
-        console.log("[TOURNAMENT] Bot connecté.");
+        console.log("[TOURNAMENT] Bot connecté et prêt.");
     });
 
     client.on("messageCreate", async (message) => {
@@ -117,29 +118,26 @@ module.exports = (client) => {
             const args = message.content.split(" ");
             const cmd = args[1];
 
-            // 🛠️ !tournament setup : Aspire TOUS les membres qui ont le rôle, fait l'arbre complet INSTANTANÉMENT ce soir
+            // 🛠️ !tournament setup : Aspire le rôle et génère l'arbre magnifique INSTANTANÉMENT
             if (cmd === "setup") {
                 saveToHistory(db);
                 
-                // 1. Récupération automatique de tous les gens qui ont le rôle participant
                 const role = message.guild.roles.cache.get(TOURNAMENT_ROLE_ID);
-                if (!role) return message.reply("❌ Impossible de trouver le rôle participant avec l'ID configuré.");
+                if (!role) return message.reply("❌ Impossible de trouver le rôle participant.");
                 
-                // Force le bot à télécharger les membres du serveur pour être sûr de n'oublier personne
                 await message.guild.members.fetch();
                 const currentParticipants = role.members.map(m => ({ id: m.id, tag: m.user.tag, epic: "In Game", status: "En lice" }));
 
                 if (currentParticipants.length < 2) {
-                    return message.reply(`❌ Il n'y a pas assez de membres avec le rôle <@&${TOURNAMENT_ROLE_ID}> pour faire un arbre.`);
+                    return message.reply(`❌ Il n'y a pas assez de membres avec le rôle pour générer un arbre.`);
                 }
 
                 db.participants = currentParticipants;
                 db.phase = "16èmes de Finale";
-                db.active = false; // Reste faux pour l'instant car le tournoi n'est pas "lancé" en vocal
+                db.active = false; 
 
                 let players = [...db.participants];
                 
-                // Extraction et blocage de la tête d'affiche Rio vs Yaska
                 let p1Head = players.find(p => p.id === HEADLINER_1);
                 let p2Head = players.find(p => p.id === HEADLINER_2);
 
@@ -162,7 +160,6 @@ module.exports = (client) => {
                     }
                 }
 
-                // Publication ou écrasement de l'arbre magnifique dans le salon
                 const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
                 if (arbreChan) {
                     const messages = await arbreChan.messages.fetch({ limit: 10 });
@@ -173,16 +170,15 @@ module.exports = (client) => {
                 }
 
                 writeDB(db);
-                return message.reply(`✅ **Succès !** L'arbre géant a aspiré les \`${db.participants.length}\` participants du rôle. Il est affiché dans <#${ARBRE_CHANNEL_ID}> !`);
+                return message.reply(`✅ **Succès !** L'arbre géant a été généré avec les \`${db.participants.length}\] joueurs. Dispo dans <#${ARBRE_CHANNEL_ID}> !`);
             }
 
-            // 🛠️ !tournament open : À taper demain à 16h pour lancer le direct et pinger tout le monde
+            // 🛠️ !tournament open : À taper demain à 16h pour lancer le stream
             if (cmd === "open") {
                 if (db.matchups.length === 0) return message.reply("❌ Tu dois d'abord générer l'arbre avec `!tournament setup` !");
 
                 db.active = true;
 
-                // Ouverture automatique des permissions du salon conférence
                 const conf = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (conf) {
                     await conf.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: true, Connect: true, Speak: false });
@@ -190,7 +186,6 @@ module.exports = (client) => {
                     if (role) await conf.permissionOverwrites.edit(role, { Speak: true });
                 }
 
-                // Grande annonce de Hype dans le salon annonces
                 const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
                 if (annoncesChan) {
                     await annoncesChan.send({ 
@@ -199,9 +194,10 @@ module.exports = (client) => {
                 }
 
                 writeDB(db);
-                return message.reply("🏆 Le tournoi est officiellement déclaré OUVERT ! Que le spectacle commence.");
+                return message.reply("🏆 Le tournoi est ouvert ! Que le spectacle commence.");
             }
 
+            // 🛠️ !tournament eliminate (Modifie une seule ligne sans toucher au reste de l'arbre)
             if (cmd === "eliminate") {
                 let targetId = null;
                 if (message.mentions.members.first()) {
@@ -210,10 +206,10 @@ module.exports = (client) => {
                     targetId = args[2];
                 }
 
-                if (!targetId) return message.reply("❌ Syntaxe incorrecte. Exemple: `!tournament eliminate @joueur`");
+                if (!targetId) return message.reply("❌ Syntaxe incorrecte.");
 
                 let matchFound = db.matchups.find(m => (m.p1.id === targetId || (m.p2 && m.p2.id === targetId)) && !m.winner);
-                if (!matchFound) return message.reply("❌ Ce joueur n'a aucun match actif dans cette phase.");
+                if (!matchFound) return message.reply("❌ Ce joueur n'a aucun match actif.");
 
                 saveToHistory(db);
 
@@ -240,23 +236,24 @@ module.exports = (client) => {
                 const confChan = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (confChan) {
                     await confChan.send({
-                        content: `🎯 **[MATCH #${matchFound.matchId} TERMINÉ]**\n👑 **<@${winnerObj.id}>** l'emporte avec brio et accède à l'étape suivante !\n❌ Subissant la loi du stream, <@${loserId}> est éliminé. Un maximum de GG à lui pour son parcours ! 👏`
+                        content: `🎯 **[MATCH #${matchFound.matchId} TERMINÉ]**\n👑 **<@${winnerObj.id}>** l'emporte avec brio et accède à l'étape suivante !\n❌ Subissant la loi du stream, <@${loserId}> est éliminé. Un maximum de GG à lui ! 👏`
                     }).catch(() => {});
                 }
 
                 let roundFinished = db.matchups.every(m => m.winner !== null);
                 if (roundFinished) {
                     writeDB(db);
-                    await message.channel.send(`🚨 **Tous les matchs de cette phase sont terminés !** Lancement automatique de l'étape supérieure...`);
+                    await message.channel.send(`🚨 **Tous les matchs de cette phase sont terminés !** Lancement de l'étape supérieure...`);
                     return triggerNextPhase(message, db);
                 }
 
                 writeDB(db);
-                return message.reply(`✅ Match enregistré. Gagnant : <@${winnerObj.id}>.`);
+                return message.reply(`✅ Match enregistré.`);
             }
 
+            // 🛠️ !tournament undo (Secours)
             if (cmd === "undo") {
-                if (!db.history || db.history.length === 0) return message.reply("❌ Aucune action en mémoire à annuler.");
+                if (!db.history || db.history.length === 0) return message.reply("❌ Aucune action en mémoire.");
 
                 const previousState = db.history.pop();
                 db.phase = previousState.phase;
@@ -282,9 +279,10 @@ module.exports = (client) => {
                 }
 
                 writeDB(db);
-                return message.reply("🔄 **[PROTOCOLE SÉCURITÉ]** La dernière commande a été annulée, l'arbre et les rôles ont été restaurés !");
+                return message.reply("🔄 **[PROTOCOLE SÉCURITÉ]** Dernière commande annulée, l'arbre et les rôles sont restaurés !");
             }
 
+            // 🛠️ !tournament summon
             if (cmd === "summon") {
                 const conf = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (!conf) return message.reply("❌ Salon conférence introuvable.");
@@ -303,6 +301,7 @@ module.exports = (client) => {
                 return message.reply(`📢 Téléportation effectuée : ${count} participants regroupés.`);
             }
 
+            // 🛠️ !tournament reset
             if (cmd === "reset") {
                 resetDatabase();
                 const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
@@ -310,7 +309,7 @@ module.exports = (client) => {
                     const treeMsg = await arbreChan.messages.fetch(db.treeMessageId).catch(() => null);
                     if (treeMsg) await treeMsg.edit({ embeds: [generateTreeEmbed({ active: false, phase: "Préparation", participants: [], matchups: [] })] });
                 }
-                return message.reply("🔄 Base de données entièrement nettoyée et réinitialisée à zéro.");
+                return message.reply("🔄 Base de données entièrement nettoyée.");
             }
 
         } catch (err) { 
@@ -325,7 +324,7 @@ module.exports = (client) => {
             const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
             if (annoncesChan) {
                 await annoncesChan.send({
-                    content: `👑👑👑 **FIN DU TOURNOI Aeroz Esports** 👑👑👑\n\n🥇 Félicitations monumentales à <@${qualifiedPlayers[0].id}> qui remporte la Grande Finale ! 🏆`
+                    content: `👑👑👑 **FIN DU TOURNOI Aeroz Esports** 👑👑👑\n\n🥇 Félicitations monumentales à <@${qualifiedPlayers[0].id}> qui remporte la Grande Finale et devient le champion incontesté ! 🏎️💨`
                 });
             }
             db.active = false;
@@ -359,7 +358,7 @@ module.exports = (client) => {
         const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
         if (annoncesChan) {
             await annoncesChan.send({
-                content: `🚨 **ALERTE TRANSITION • ${db.phase.toUpperCase()}** 🚨\n\nL'arbre vient d'être mis à jour dans <#${ARBRE_CHANNEL_ID}> ! Les survivants, préparez-vous immédiatement en vocal. 🔥`
+                content: `🚨 **ALERTE TRANSITION • ${db.phase.toUpperCase()}** 🚨\n\nL'arbre vient d'être mis à jour dans <#${ARBRE_CHANNEL_ID}> ! On enchaîne en vocal ! 🔥`
             });
         }
 
