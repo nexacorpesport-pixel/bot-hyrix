@@ -19,10 +19,6 @@ const ARBRE_CHANNEL_ID = "1523811049160179784";
 const LOGS_CHANNEL_ID = "1523811079409500200";         
 const LINK_EVENT = "https://discord.com/events/1501625824028266676/1523813643870015558"; 
 
-// CONFIGURATION DU CHOC DES TITANS (TÊTE D'AFFICHE OBLIGATOIRE MATCH #1)
-const HEADLINER_1 = "1031138060445945866"; // Rio
-const HEADLINER_2 = "1264673063350304830"; // Yaska
-
 const DB_PATH = path.join(__dirname, "../data/tournament_database.json");
 
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -65,7 +61,7 @@ function generateTreeEmbed(db) {
     if (db.phase === "Préparation") {
         description += `📢 **L'arbre est en cours de génération par le staff...**`;
     } else {
-        description += `*Les matchups sont scellés. Entraînez-vous, le stream commence demain à 16h00 !*\n\n`;
+        description += `*Les matchups sont scellés par le destin. Entraînez-vous, le stream commence demain à 16h00 !*\n\n`;
         if (!db.matchups || db.matchups.length === 0) {
             description += "*Aucun match programmé.*";
         } else {
@@ -102,7 +98,7 @@ function saveToHistory(db) {
 module.exports = (client) => {
 
     client.on("ready", async () => {
-        console.log("[TOURNAMENT] Bot connecté et prêt.");
+        console.log("[TOURNAMENT] Bot connecté et prêt pour le tirage full aléatoire.");
     });
 
     client.on("messageCreate", async (message) => {
@@ -118,7 +114,7 @@ module.exports = (client) => {
             const args = message.content.split(" ");
             const cmd = args[1];
 
-            // 🛠️ !tournament setup : Aspire le rôle et génère l'arbre magnifique INSTANTANÉMENT
+            // 🛠️ !tournament setup : Aspire le rôle et mélange TOUT LE MONDE à 100%
             if (cmd === "setup") {
                 saveToHistory(db);
                 
@@ -133,21 +129,16 @@ module.exports = (client) => {
                 }
 
                 db.participants = currentParticipants;
-                db.phase = "16èmes de Finale";
+                
+                // Détermination automatique du nom de la phase de départ selon le nombre de joueurs
+                if (db.participants.length > 32) db.phase = "32èmes de Finale";
+                else db.phase = "16èmes de Finale";
+                
                 db.active = false; 
 
+                // Mélange 100% Aléatoire (Full hasard)
                 let players = [...db.participants];
-                
-                let p1Head = players.find(p => p.id === HEADLINER_1);
-                let p2Head = players.find(p => p.id === HEADLINER_2);
-
-                if (p1Head && p2Head) {
-                    players = players.filter(p => p.id !== HEADLINER_1 && p.id !== HEADLINER_2);
-                    players.sort(() => Math.random() - 0.5);
-                    players.unshift(p1Head, p2Head);
-                } else {
-                    players.sort(() => Math.random() - 0.5);
-                }
+                players.sort(() => Math.random() - 0.5);
 
                 db.matchups = [];
                 let matchIdCounter = 1;
@@ -170,10 +161,10 @@ module.exports = (client) => {
                 }
 
                 writeDB(db);
-                return message.reply(`✅ **Succès !** L'arbre géant a été généré avec les \`${db.participants.length}\] joueurs. Dispo dans <#${ARBRE_CHANNEL_ID}> !`);
+                return message.reply(`🎲 **Tirage au sort effectué !** L'arbre géant à l'état brut avec \`${db.participants.length}\` joueurs est publié dans <#${ARBRE_CHANNEL_ID}> !`);
             }
 
-            // 🛠️ !tournament open : À taper demain à 16h pour lancer le stream
+            // 🛠️ !tournament open : À taper demain à 16h pour ouvrir la conférence et envoyer la sauce
             if (cmd === "open") {
                 if (db.matchups.length === 0) return message.reply("❌ Tu dois d'abord générer l'arbre avec `!tournament setup` !");
 
@@ -189,15 +180,15 @@ module.exports = (client) => {
                 const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
                 if (annoncesChan) {
                     await annoncesChan.send({ 
-                        content: `@everyone 🏆 **LE TOURNOI Aeroz Esports COMMENCE TOUT DE SUITE !**\n🎙️ Rejoignez immédiatement la <#${CONFERENCE_CHANNEL_ID}> ! Le stream est lancé et on commence directement sur le ring avec le match légendaire : <@${HEADLINER_1}> VS <@${HEADLINER_2}> ! 🔥` 
+                        content: `@everyone 🏆 **LE TOURNOI Aeroz Esports COMMENCE TOUT DE SUITE !**\n🎙️ Les brackets sont tirés au sort ! Rejoignez immédiatement la <#${CONFERENCE_CHANNEL_ID}> ! Le stream est officiellement lancé, place au Match #1 ! 🔥` 
                     });
                 }
 
                 writeDB(db);
-                return message.reply("🏆 Le tournoi est ouvert ! Que le spectacle commence.");
+                return message.reply("🏆 Le tournoi est ouvert ! Que le meilleur gagne.");
             }
 
-            // 🛠️ !tournament eliminate (Modifie une seule ligne sans toucher au reste de l'arbre)
+            // 🛠️ !tournament eliminate
             if (cmd === "eliminate") {
                 let targetId = null;
                 if (message.mentions.members.first()) {
@@ -251,7 +242,7 @@ module.exports = (client) => {
                 return message.reply(`✅ Match enregistré.`);
             }
 
-            // 🛠️ !tournament undo (Secours)
+            // 🛠️ !tournament undo
             if (cmd === "undo") {
                 if (!db.history || db.history.length === 0) return message.reply("❌ Aucune action en mémoire.");
 
@@ -333,7 +324,8 @@ module.exports = (client) => {
             return;
         }
 
-        if (qualifiedPlayers.length > 8 && qualifiedPlayers.length <= 16) db.phase = "8èmes de Finale";
+        if (qualifiedPlayers.length > 16 && qualifiedPlayers.length <= 32) db.phase = "16èmes de Finale";
+        else if (qualifiedPlayers.length > 8 && qualifiedPlayers.length <= 16) db.phase = "8èmes de Finale";
         else if (qualifiedPlayers.length > 4 && qualifiedPlayers.length <= 8) db.phase = "Quarts de Finale";
         else if (qualifiedPlayers.length > 2 && qualifiedPlayers.length <= 4) db.phase = "Demi-Finales";
         else db.phase = "Grande Finale 👑";
