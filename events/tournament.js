@@ -4,10 +4,7 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle
+    ButtonStyle
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
@@ -22,13 +19,11 @@ const ARBRE_CHANNEL_ID = "1523811049160179784";
 const LOGS_CHANNEL_ID = "1523811079409500200";         
 const LINK_EVENT = "https://discord.com/events/1501625824028266676/1523813643870015558"; 
 
-// CONFIGURATION DU CHOC DES TITANS (TÊTE D'AFFICHE OBLIGATOIRE MATCH #1)
 const HEADLINER_1 = "1031138060445945866"; // Rio
 const HEADLINER_2 = "1264673063350304830"; // Yaska
 
 const DB_PATH = path.join(__dirname, "../data/tournament_database.json");
 
-// Initialisation de la base de données V2
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 if (!fs.existsSync(DB_PATH)) {
     resetDatabase();
@@ -54,35 +49,36 @@ function writeDB(data) {
 function resetDatabase() {
     fs.writeFileSync(DB_PATH, JSON.stringify({ 
         active: false, 
-        phase: "Inscriptions", 
+        phase: "Préparation", 
         treeMessageId: null, 
         participants: [], 
         matchups: [],
-        history: [] // Pour la commande !tournament undo
+        history: []
     }, null, 4));
 }
 
-// Générateur d'arbre V2 (Sans horaires, affichage propre par Match #X)
 function generateTreeEmbed(db) {
     let title = `🏆 BRACKET OFFICIEL • ${db.phase.toUpperCase()}`;
     let description = `### 🌿 ÉTAPE ACTUELLE : ${db.phase.toUpperCase()}\n`;
-    description += `*Les matchs s'enchaînent en direct. Restez attentifs aux annonces vocales !*\n\n`;
     
-    if (!db.matchups || db.matchups.length === 0) {
-        description += "*Aucun match programmé.*";
+    if (db.phase === "Préparation") {
+        description += `📢 **L'arbre est en cours de génération par le staff...**`;
     } else {
-        db.matchups.forEach((m) => {
-            let matchLabel = `**Match #${m.matchId}**`;
-            
-            if (!m.p2) {
-                description += `🔹 ${matchLabel}\n👑 <@${m.p1.id}> (Epic: \`${m.p1.epic}\`) ➜ *Qualifié d'office*\n\n`;
-            } else {
-                let p1Display = m.winner === m.p1.id ? `👑 **<@${m.p1.id}> (\`${m.p1.epic}\`)**` : (m.winner ? `❌ ~~<@${m.p1.id}>~~` : `<@${m.p1.id}> (\`${m.p1.epic}\`)`);
-                let p2Display = m.winner === m.p2.id ? `👑 **<@${m.p2.id}> (\`${m.p2.epic}\`)**` : (m.winner ? `❌ ~~<@${m.p2.id}>~~` : `<@${m.p2.id}> (\`${m.p2.epic}\`)`);
-                
-                description += `🔹 ${matchLabel}\n👉 ${p1Display}\n 🆚 \n👉 ${p2Display}\n\n`;
-            }
-        });
+        description += `*Les matchups sont scellés. Entraînez-vous, le stream commence demain à 16h00 !*\n\n`;
+        if (!db.matchups || db.matchups.length === 0) {
+            description += "*Aucun match programmé.*";
+        } else {
+            db.matchups.forEach((m) => {
+                let matchLabel = `**Match #${m.matchId}**`;
+                if (!m.p2) {
+                    description += `🔹 ${matchLabel}\n👑 <@${m.p1.id}> ➜ *Qualifié d'office*\n\n`;
+                } else {
+                    let p1Display = m.winner === m.p1.id ? `👑 **<@${m.p1.id}>**` : (m.winner ? `❌ ~~<@${m.p1.id}>~~` : `<@${m.p1.id}>`);
+                    let p2Display = m.winner === m.p2.id ? `👑 **<@${m.p2.id}>**` : (m.winner ? `❌ ~~<@${m.p2.id}>~~` : `<@${m.p2.id}>`);
+                    description += `🔹 ${matchLabel}\n👉 ${p1Display}\n 🆚 \n👉 ${p2Display}\n\n`;
+                }
+            });
+        }
     }
 
     return new EmbedBuilder()
@@ -93,99 +89,25 @@ function generateTreeEmbed(db) {
         .setTimestamp();
 }
 
-// Sauvegarde l'état actuel pour le système anti-erreur (Undo)
 function saveToHistory(db) {
-    // On garde uniquement les données nécessaires pour restaurer l'état précédent
     db.history.push({
         phase: db.phase,
         participants: JSON.parse(JSON.stringify(db.participants)),
         matchups: JSON.parse(JSON.stringify(db.matchups))
     });
-    // Limite l'historique aux 5 dernières actions pour ne pas surcharger le fichier
     if (db.history.length > 5) db.history.shift();
 }
 
 module.exports = (client) => {
 
-    client.on("interactionCreate", async (interaction) => {
-        try {
-            if (interaction.isButton() && interaction.customId === "tn_register") {
-                const db = readDB();
-                if (db.active) {
-                    return interaction.reply({ content: "❌ **Inscriptions clôturées :** Le tournoi est en cours.", ephemeral: true });
-                }
-                if (db.participants.some(p => p.id === interaction.user.id)) {
-                    return interaction.reply({ content: "❌ Tu es déjà inscrit à cet événement !", ephemeral: true });
-                }
-
-                const modal = new ModalBuilder().setCustomId("tn_modal_inscription").setTitle("Aeroz Tournament");
-                const epicInput = new TextInputBuilder()
-                    .setCustomId("epic_username")
-                    .setLabel("Quel est ton pseudo Epic Games exact ?")
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder("Ex: Aeroz_Luxx")
-                    .setMinLength(3)
-                    .setMaxLength(30)
-                    .setRequired(true);
-                
-                modal.addComponents(new ActionRowBuilder().addComponents(epicInput));
-                await interaction.showModal(modal);
-            }
-
-            if (interaction.isModalSubmit() && interaction.customId === "tn_modal_inscription") {
-                const epicUsername = interaction.fields.getTextInputValue("epic_username");
-                const db = readDB();
-
-                if (db.participants.some(p => p.id === interaction.user.id)) {
-                    return interaction.reply({ content: "❌ Tu es déjà inscrit.", ephemeral: true });
-                }
-
-                db.participants.push({ id: interaction.user.id, tag: interaction.user.tag, epic: epicUsername, status: "En lice" });
-                writeDB(db);
-
-                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-                if (member) {
-                    const role = interaction.guild.roles.cache.get(TOURNAMENT_ROLE_ID);
-                    if (role) await member.roles.add(role).catch(() => {});
-                }
-
-                const logsChan = interaction.guild.channels.cache.get(LOGS_CHANNEL_ID);
-                if (logsChan) {
-                    await logsChan.send({ 
-                        embeds: [new EmbedBuilder().setColor("#2ecc71").setTitle("📥 Nouvelle Inscription").setDescription(`👤 Joueur : <@${interaction.user.id}>\n🎮 Epic Games : \`${epicUsername}\``).setTimestamp()] 
-                    });
-                }
-
-                return interaction.reply({ content: `✅ **Inscription validée !** Pseudo Epic : \`${epicUsername}\`. Prépare-toi pour demain !`, ephemeral: true });
-            }
-        } catch (err) { 
-            console.error("[INTERACTION ERROR]", err); 
-        }
+    client.on("ready", async () => {
+        console.log("[TOURNAMENT] Bot connecté.");
     });
 
     client.on("messageCreate", async (message) => {
         try {
             if (message.author.bot) return;
             const db = readDB();
-
-            // 🌟 COMMANDE JOUEUR : !mystats
-            if (message.content === "!mystats") {
-                const player = db.participants.find(p => p.id === message.author.id);
-                if (!player) {
-                    return message.reply("❌ Tu n'es pas inscrit au tournoi. Utilise le panneau d'inscription !");
-                }
-
-                const statsEmbed = new EmbedBuilder()
-                    .setColor("#deff9a")
-                    .setTitle(`📊 FICHE COMPÉTITEUR • ${message.author.username}`)
-                    .setDescription(
-                        `🎮 **Pseudo Epic Games :** \`${player.epic}\`\n` +
-                        `📋 **Statut Actuel :** ${player.status === "Eliminated" ? "❌ Éliminé" : "🟢 En lice / Qualifié"}\n\n` +
-                        `🎁 **Récompense Finale :** Shoutout complet sur les réseaux d'**Aeroz Esports** + Rôle unique !`
-                    );
-
-                return message.reply({ embeds: [statsEmbed] });
-            }
 
             if (!message.content.startsWith("!tournament")) return;
             if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -195,49 +117,35 @@ module.exports = (client) => {
             const args = message.content.split(" ");
             const cmd = args[1];
 
-            // 🛠️ !tournament setup
+            // 🛠️ !tournament setup : Aspire TOUS les membres qui ont le rôle, fait l'arbre complet INSTANTANÉMENT ce soir
             if (cmd === "setup") {
-                const embed = new EmbedBuilder()
-                    .setColor("#ff6b00")
-                    .setTitle("🏆 AEROZ REALISTIC TOURNAMENT • PHASES FINALES")
-                    .setDescription(
-                        `🔥 **Les Phases Finales (32 compétiteurs) d'Aeroz Esports vont commencer !**\n\n` +
-                        `📌 **Événement Officiel Discord :** [Lien direct de l'événement](${LINK_EVENT})\n\n` +
-                        `⚠️ **RÈGLES DU DIRECT (STRICTES) :**\n` +
-                        `• ⏳ **Zéro retard toléré :** Les matchs s'enchaînent instantanément en stream.\n` +
-                        `• 🔇 **Rôle :** Dès que vous perdez, votre rôle de participant saute automatiquement.\n` +
-                        `• 🚫 **Zéro Trash-talk :** Disqualification définitive immédiate.\n\n` +
-                        `🎁 **À GAGNER :** Visibilité maximale sur nos réseaux Aeroz Esports + Rôle Champion unique !`
-                    )
-                    .setFooter({ text: "Renseigne ton Epic Games en cliquant ci-dessous ⏬" });
-
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("tn_register").setLabel("S'inscrire aux Phases Finales 🎮").setStyle(ButtonStyle.Danger)
-                );
-
-                await message.channel.send({ content: "@everyone 🚨 **PRÉPARATION DE L'ARBRE DE DEMAIN !**", embeds: [embed], components: [row] });
-                return message.reply("✅ Panneau d'inscription envoyé.");
-            }
-
-            // 🛠️ !tournament open (Génération verrouillée à 32 joueurs max, sans horaires + Tête d'affiche)
-            if (cmd === "open") {
-                if (db.participants.length < 2) return message.reply("❌ Pas assez de joueurs.");
-
                 saveToHistory(db);
-                db.active = true;
+                
+                // 1. Récupération automatique de tous les gens qui ont le rôle participant
+                const role = message.guild.roles.cache.get(TOURNAMENT_ROLE_ID);
+                if (!role) return message.reply("❌ Impossible de trouver le rôle participant avec l'ID configuré.");
+                
+                // Force le bot à télécharger les membres du serveur pour être sûr de n'oublier personne
+                await message.guild.members.fetch();
+                const currentParticipants = role.members.map(m => ({ id: m.id, tag: m.user.tag, epic: "In Game", status: "En lice" }));
+
+                if (currentParticipants.length < 2) {
+                    return message.reply(`❌ Il n'y a pas assez de membres avec le rôle <@&${TOURNAMENT_ROLE_ID}> pour faire un arbre.`);
+                }
+
+                db.participants = currentParticipants;
                 db.phase = "16èmes de Finale";
+                db.active = false; // Reste faux pour l'instant car le tournoi n'est pas "lancé" en vocal
 
                 let players = [...db.participants];
                 
-                // Extraction forcée de la tête d'affiche (Rio et Yaska)
+                // Extraction et blocage de la tête d'affiche Rio vs Yaska
                 let p1Head = players.find(p => p.id === HEADLINER_1);
                 let p2Head = players.find(p => p.id === HEADLINER_2);
 
                 if (p1Head && p2Head) {
                     players = players.filter(p => p.id !== HEADLINER_1 && p.id !== HEADLINER_2);
-                    // On mélange le reste des joueurs aléatoirement
                     players.sort(() => Math.random() - 0.5);
-                    // On remet notre tête d'affiche tout en haut de la liste
                     players.unshift(p1Head, p2Head);
                 } else {
                     players.sort(() => Math.random() - 0.5);
@@ -254,7 +162,27 @@ module.exports = (client) => {
                     }
                 }
 
-                // Ajustement asynchrone des permissions du salon conférence
+                // Publication ou écrasement de l'arbre magnifique dans le salon
+                const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
+                if (arbreChan) {
+                    const messages = await arbreChan.messages.fetch({ limit: 10 });
+                    if (messages.size > 0) await arbreChan.bulkDelete(messages).catch(() => {});
+
+                    const sentMsg = await arbreChan.send({ embeds: [generateTreeEmbed(db)] });
+                    db.treeMessageId = sentMsg.id;
+                }
+
+                writeDB(db);
+                return message.reply(`✅ **Succès !** L'arbre géant a aspiré les \`${db.participants.length}\` participants du rôle. Il est affiché dans <#${ARBRE_CHANNEL_ID}> !`);
+            }
+
+            // 🛠️ !tournament open : À taper demain à 16h pour lancer le direct et pinger tout le monde
+            if (cmd === "open") {
+                if (db.matchups.length === 0) return message.reply("❌ Tu dois d'abord générer l'arbre avec `!tournament setup` !");
+
+                db.active = true;
+
+                // Ouverture automatique des permissions du salon conférence
                 const conf = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (conf) {
                     await conf.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: true, Connect: true, Speak: false });
@@ -262,35 +190,27 @@ module.exports = (client) => {
                     if (role) await conf.permissionOverwrites.edit(role, { Speak: true });
                 }
 
-                const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
-                if (arbreChan) {
-                    const sentMsg = await arbreChan.send({ embeds: [generateTreeEmbed(db)] });
-                    db.treeMessageId = sentMsg.id;
-                }
-
+                // Grande annonce de Hype dans le salon annonces
                 const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
                 if (annoncesChan) {
                     await annoncesChan.send({ 
-                        content: `@everyone 🏆 **L'ARBRE DES 16ÈMES DE FINALE EST EN LIGNE !**\n🎙️ Rejoignez immédiatement <#${CONFERENCE_CHANNEL_ID}>, le stream commence ! Le gros choc de l'ouverture opposera <@${HEADLINER_1}> à <@${HEADLINER_2}> ! 🔥` 
+                        content: `@everyone 🏆 **LE TOURNOI Aeroz Esports COMMENCE TOUT DE SUITE !**\n🎙️ Rejoignez immédiatement la <#${CONFERENCE_CHANNEL_ID}> ! Le stream est lancé et on commence directement sur le ring avec le match légendaire : <@${HEADLINER_1}> VS <@${HEADLINER_2}> ! 🔥` 
                     });
                 }
 
                 writeDB(db);
-                return message.reply("🏆 Arbre des 16èmes généré au millimètre ! Prêt à stream.");
+                return message.reply("🏆 Le tournoi est officiellement déclaré OUVERT ! Que le spectacle commence.");
             }
 
-            // 🛠️ !tournament eliminate (Supporte Mention OU ID brut, indexation sécurisée et transition automatique)
             if (cmd === "eliminate") {
                 let targetId = null;
-                
-                // Détection de l'argument (soit une mention, soit un ID brut de chiffres)
                 if (message.mentions.members.first()) {
                     targetId = message.mentions.members.first().id;
                 } else if (args[2] && /^\d+$/.test(args[2])) {
                     targetId = args[2];
                 }
 
-                if (!targetId) return message.reply("❌ Syntaxe incorrecte. Exemple: `!tournament eliminate @joueur` ou `!tournament eliminate ID_DISCORD`");
+                if (!targetId) return message.reply("❌ Syntaxe incorrecte. Exemple: `!tournament eliminate @joueur`");
 
                 let matchFound = db.matchups.find(m => (m.p1.id === targetId || (m.p2 && m.p2.id === targetId)) && !m.winner);
                 if (!matchFound) return message.reply("❌ Ce joueur n'a aucun match actif dans cette phase.");
@@ -302,25 +222,21 @@ module.exports = (client) => {
                 
                 matchFound.winner = winnerObj.id;
 
-                // Changement de statut dans la base
                 const pIndex = db.participants.findIndex(p => p.id === loserId);
                 if (pIndex !== -1) db.participants[pIndex].status = "Eliminated";
 
-                // Retrait immédiat du rôle participant
                 const targetMember = await message.guild.members.fetch(loserId).catch(() => null);
                 if (targetMember) {
                     const role = message.guild.roles.cache.get(TOURNAMENT_ROLE_ID);
                     if (role) await targetMember.roles.remove(role).catch(() => {});
                 }
 
-                // Édition en direct de l'arbre visuel
                 const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
                 if (arbreChan && db.treeMessageId) {
                     const treeMsg = await arbreChan.messages.fetch(db.treeMessageId).catch(() => null);
                     if (treeMsg) await treeMsg.edit({ embeds: [generateTreeEmbed(db)] });
                 }
 
-                // Annonce dynamique du résultat dans le salon Conférence
                 const confChan = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (confChan) {
                     await confChan.send({
@@ -328,7 +244,6 @@ module.exports = (client) => {
                     }).catch(() => {});
                 }
 
-                // VERIFICATION AUTOMATIQUE : Est-ce que tous les matchs de la phase sont finis ?
                 let roundFinished = db.matchups.every(m => m.winner !== null);
                 if (roundFinished) {
                     writeDB(db);
@@ -340,17 +255,14 @@ module.exports = (client) => {
                 return message.reply(`✅ Match enregistré. Gagnant : <@${winnerObj.id}>.`);
             }
 
-            // 🛠️ !tournament undo (Le protocole de secours ultime anti-fausse manip)
             if (cmd === "undo") {
                 if (!db.history || db.history.length === 0) return message.reply("❌ Aucune action en mémoire à annuler.");
 
                 const previousState = db.history.pop();
-                
                 db.phase = previousState.phase;
                 db.participants = previousState.participants;
                 db.matchups = previousState.matchups;
 
-                // Remettre le rôle aux joueurs éventuellement éliminés par erreur lors de la dernière action
                 const role = message.guild.roles.cache.get(TOURNAMENT_ROLE_ID);
                 if (role) {
                     for (const p of db.participants) {
@@ -370,10 +282,9 @@ module.exports = (client) => {
                 }
 
                 writeDB(db);
-                return message.reply("🔄 **[PROTOCOLE SÉCURITÉ]** La dernière commande a été annulée avec succès, l'arbre et les rôles ont été restaurés !");
+                return message.reply("🔄 **[PROTOCOLE SÉCURITÉ]** La dernière commande a été annulée, l'arbre et les rôles ont été restaurés !");
             }
 
-            // 🛠️ !tournament summon
             if (cmd === "summon") {
                 const conf = message.guild.channels.cache.get(CONFERENCE_CHANNEL_ID);
                 if (!conf) return message.reply("❌ Salon conférence introuvable.");
@@ -392,9 +303,13 @@ module.exports = (client) => {
                 return message.reply(`📢 Téléportation effectuée : ${count} participants regroupés.`);
             }
 
-            // 🛠️ !tournament reset
             if (cmd === "reset") {
                 resetDatabase();
+                const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
+                if (arbreChan && db.treeMessageId) {
+                    const treeMsg = await arbreChan.messages.fetch(db.treeMessageId).catch(() => null);
+                    if (treeMsg) await treeMsg.edit({ embeds: [generateTreeEmbed({ active: false, phase: "Préparation", participants: [], matchups: [] })] });
+                }
                 return message.reply("🔄 Base de données entièrement nettoyée et réinitialisée à zéro.");
             }
 
@@ -403,7 +318,6 @@ module.exports = (client) => {
         }
     });
 
-    // ÉXÉCUTION AUTOMATIQUE DE LA TRANSITION DES ARBRES (16èmes ➜ 8èmes ➜ Quarts ➜ Demis ➜ Finale)
     async function triggerNextPhase(message, db) {
         let qualifiedPlayers = db.participants.filter(p => p.status !== "Eliminated");
         
@@ -411,7 +325,7 @@ module.exports = (client) => {
             const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
             if (annoncesChan) {
                 await annoncesChan.send({
-                    content: `👑👑👑 **FIN DU TOURNOI Aeroz Esports** 👑👑👑\n\n🥇 Félicitations monumentales à <@${qualifiedPlayers[0].id}> (Epic: \`${qualifiedPlayers[0].epic}\`) qui remporte la Grande Finale et devient le champion incontesté ! Un immense merci à tous d'avoir suivi ce live de folie ! 🏎️💨`
+                    content: `👑👑👑 **FIN DU TOURNOI Aeroz Esports** 👑👑👑\n\n🥇 Félicitations monumentales à <@${qualifiedPlayers[0].id}> qui remporte la Grande Finale ! 🏆`
                 });
             }
             db.active = false;
@@ -420,7 +334,6 @@ module.exports = (client) => {
             return;
         }
 
-        // Calcul automatique du nom du palier
         if (qualifiedPlayers.length > 8 && qualifiedPlayers.length <= 16) db.phase = "8èmes de Finale";
         else if (qualifiedPlayers.length > 4 && qualifiedPlayers.length <= 8) db.phase = "Quarts de Finale";
         else if (qualifiedPlayers.length > 2 && qualifiedPlayers.length <= 4) db.phase = "Demi-Finales";
@@ -437,18 +350,16 @@ module.exports = (client) => {
             }
         }
 
-        // Edition immédiate du message de l'arbre
         const arbreChan = message.guild.channels.cache.get(ARBRE_CHANNEL_ID);
         if (arbreChan && db.treeMessageId) {
             const treeMsg = await arbreChan.messages.fetch(db.treeMessageId).catch(() => null);
             if (treeMsg) await treeMsg.edit({ embeds: [generateTreeEmbed(db)] });
         }
 
-        // Notification globale Hype
         const annoncesChan = message.guild.channels.cache.get(ANNONCES_CHANNEL_ID);
         if (annoncesChan) {
             await annoncesChan.send({
-                content: `🚨 **ALERTE TRANSITION • ${db.phase.toUpperCase()}** 🚨\n\nLe tri est fait, l'intensité monte d'un cran ! L'arbre vient d'être mis à jour dans <#${ARBRE_CHANNEL_ID}>.\nLes survivants, préparez-vous immédiatement en vocal, on enchaîne sans aucune coupure ! 🔥`
+                content: `🚨 **ALERTE TRANSITION • ${db.phase.toUpperCase()}** 🚨\n\nL'arbre vient d'être mis à jour dans <#${ARBRE_CHANNEL_ID}> ! Les survivants, préparez-vous immédiatement en vocal. 🔥`
             });
         }
 
