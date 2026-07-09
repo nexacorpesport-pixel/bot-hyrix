@@ -21,15 +21,15 @@ const TRIGGER_CHANNEL = "1501626007562485910";
 const TEMP_CATEGORY = "1501626005662597121";
 const LOGS_CHANNEL = "1521931122043256892";
 
-// Security Clearance & Bypass Matrix
+const OWNER_ID = "1431661348218998948";
 const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"]; 
 
-// RAM Runtime Registry & Hardware Cooldown Tracker
+// RAM Runtime Registry
 const tempChannels = new Map();
-const nameCooldowns = new Map(); // Discord API Limit Layer: Max 2 updates / 10 minutes
+const nameCooldowns = new Map(); 
 
-// Persistent Storage Routing
-const DB_PATH = path.join(__dirname, "../data/voice_database.json");
+// Persistent Storage Routing (Dossier data/)
+const DB_PATH = path.join(__dirname, "data", "voice_database.json");
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify({ savedConfigs: {} }, null, 4));
 
@@ -38,24 +38,155 @@ function writeDB(data) { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 4)
 
 module.exports = (client) => {
 
+    const isStaff = (member) => {
+        if (!member) return false;
+        if (member.id === OWNER_ID || member.guild.ownerId === member.id) return true;
+        if (member.permissions.has(PermissionsBitField.Flags.Administrator)) return true;
+        return STAFF_ROLES.some(roleId => member.roles.cache.has(roleId));
+    };
+
     // =====================================================
     // 🛡️ GARBAGE COLLECTOR : PURGE DES SALONS GHOSTS
     // =====================================================
+    const runGarbageCollector = async (guild) => {
+        const category = await guild.channels.fetch(TEMP_CATEGORY).catch(() => null);
+        let deletedCount = 0;
+        if (category?.type === ChannelType.GuildCategory) {
+            for (const [_, channel] of category.children.cache) {
+                if (channel.id === TRIGGER_CHANNEL) continue;
+                if (channel.type === ChannelType.GuildVoice && channel.members.size === 0) {
+                    tempChannels.delete(channel.id);
+                    await channel.delete().catch(() => {});
+                    deletedCount++;
+                }
+            }
+        }
+        return deletedCount;
+    };
+
     client.once("ready", async () => {
         console.log("[VOICE ENGINE] Scan d'initialisation et nettoyage des salons résiduels...");
-        const category = await client.channels.fetch(TEMP_CATEGORY).catch(() => null);
-        
-        if (category?.type === ChannelType.GuildCategory) {
-            category.children.cache.forEach(async (channel) => {
-                // Protection du point d'ancrage principal
-                if (channel.id === TRIGGER_CHANNEL) return;
-                
-                // Isolation et destruction des salons abandonnés suite à un crash du process
-                if (channel.type === ChannelType.GuildVoice && channel.members.size === 0) {
-                    await channel.delete().catch(() => {});
-                    console.log(`[GC PURGE] Nettoyage du salon orphelin : ${channel.name}`);
-                }
+        // Exécution globale sur le premier serveur disponible au démarrage
+        const firstGuild = client.guilds.cache.first();
+        if (firstGuild) await runGarbageCollector(firstGuild);
+    });
+
+    // =====================================================
+    // ❌ FILTRE STRICT TEXTUEL : INTERDICTION D'ECRIRE (ARTICLE 9)
+    // =====================================================
+    client.on("messageCreate", async (msg) => {
+        if (!msg.guild || msg.author.bot) return;
+
+        // Si le message est écrit dans un salon éphémère actif
+        if (tempChannels.has(msg.channel.id)) {
+            const prefix = "+";
+            if (msg.content.startsWith(prefix)) return; // Permet de laisser passer les commandes si nécessaire
+
+            if (isStaff(msg.member)) return; // Le staff est immunisé
+
+            // Suppression immédiate
+            await msg.delete().catch(() => {});
+
+            // Envoi de la sanction réglementaire
+            return msg.channel.send(`⚠️ ${msg.author}, **il est strictement interdit d'écrire dans ce salon.**\n\n> **Article 9 du règlement :** *Il est strictement interdit d'écrire ou d'utiliser le chat textuel intégré des salons vocaux ainsi que les salons écrits ou vocaux temporaires pour y commettre des infractions ou contourner la surveillance du staff. Ces espaces sont archivés et surveillés de près.*`)
+                .then(m => setTimeout(() => m.delete().catch(() => {}), 10000));
+        }
+
+        // =====================================================
+        // ⌨️ MODULE DES COMMANDES TEXTUELLES (+) ADMIN / STAFF
+        // =====================================================
+        const prefix = "+";
+        if (!msg.content.startsWith(prefix)) return;
+
+        const args = msg.content.slice(prefix.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
+
+        // Protection : Seul le staff Aeroz accède à ces commandes de gestion
+        const voiceCommands = ["voice-status", "voice-cooldowns", "voice-cooldownreset", "setvoice-trigger", "setvoice-category", "setvoice-logs", "voice-purge", "voice-delete", "voice-resetdb", "voice-viewprofile", "voice-clearprofile", "help-voice"];
+        if (voiceCommands.includes(command) && !isStaff(msg.member)) {
+            await msg.delete().catch(() => {});
+            return;
+        }
+
+        if (command === "help-voice") {
+            const hEmbed = new EmbedBuilder()
+                .setTitle("🛠️ Manuel d'Urgence Vocale — Hublot Aeroz")
+                .setColor("#2b2d31")
+                .addFields(
+                    { name: "📊 Visualisation & Fixs", value: "`+voice-status` - État du trafic vocal.\n`+voice-cooldowns` - Voir les utilisateurs bloqués API.\n`+voice-cooldownreset [@membre]` - Forcer le reset du cooldown de nom." },
+                    { name: "🧹 Nettoyage & Maintenance", value: "`+voice-purge` - Déclenche le Garbage Collector immédiat.\n`+voice-delete [ID_Salon]` - Supprime de force une instance.\n`+voice-resetdb` - Wipe toutes les configs sauvegardées (JSON)." },
+                    { name: "👤 Profils Membres", value: "`+voice-viewprofile [@membre]` - Inspecter une jauge/nom sauvegardé.\n`+voice-clearprofile [@membre]` - Reset le profil d'un membre si hors-charte." }
+                );
+            return msg.author.send({ embeds: [hEmbed] }).then(() => msg.reply("📥 Le guide d'administration vocale a été envoyé en privé.")).catch(() => {});
+        }
+
+        if (command === "voice-status") {
+            const db = readDB();
+            const savedCount = Object.keys(db.savedConfigs).length;
+            const statusEmbed = new EmbedBuilder()
+                .setTitle("📊 Statut de l'Infrastructure Vocale Éphémère")
+                .setColor("Blue")
+                .setDescription(`• Salons Actifs en RAM : **${tempChannels.size}**\n• Profils uniques enregistrés en JSON : **${savedCount}**\n• Restriction API (Cooldowns actifs) : **${nameCooldowns.size}**`);
+            return msg.channel.send({ embeds: [statusEmbed] });
+        }
+
+        if (command === "voice-cooldowns") {
+            if (nameCooldowns.size === 0) return msg.reply("🟢 Aucun utilisateur n'est actuellement restreint par l'API Discord.");
+            let list = "";
+            nameCooldowns.forEach((times, userId) => {
+                list += `• <@${userId}> (\`${userId}\`) : ${times.length} modification(s) récente(s)\n`;
             });
+            return msg.channel.send(`⏳ **Liste des restrictions de renommage actives :**\n${list}`);
+        }
+
+        if (command === "voice-cooldownreset") {
+            const target = msg.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
+            if (!target) return msg.reply("❌ Précisez ou mentionnez l'utilisateur.");
+            nameCooldowns.delete(target.id);
+            return msg.reply(`✅ Restriction de renommage annulée pour ${target}.`);
+        }
+
+        if (command === "voice-purge") {
+            const deleted = await runGarbageCollector(msg.guild);
+            return msg.reply(`🧹 **Garbage Collector exécuté.** **${deleted}** salon(s) vide(s) ou orphelin(s) supprimé(s).`);
+        }
+
+        if (command === "voice-delete") {
+            const channelId = args[0];
+            if (!channelId) return msg.reply("❌ Fournissez l'ID du salon vocal à détruire.");
+            const targetChan = await msg.guild.channels.fetch(channelId).catch(() => null);
+            if (!targetChan) return msg.reply("❌ Salon introuvable sur Discord.");
+            
+            tempChannels.delete(channelId);
+            await targetChan.delete().catch(() => {});
+            return msg.reply(`🗑️ Le salon éphémère \`${channelId}\` a été détruit de force.`);
+        }
+
+        if (command === "voice-resetdb") {
+            writeDB({ savedConfigs: {} });
+            return msg.reply("♻️ **Base de données vocale réinitialisée.** Toutes les sauvegardes de salons des joueurs ont été effacées.");
+        }
+
+        if (command === "voice-viewprofile") {
+            const target = msg.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
+            if (!target) return msg.reply("❌ Précisez l'utilisateur.");
+            const db = readDB();
+            const config = db.savedConfigs[target.id];
+            if (!config) return msg.reply("👤 Cet utilisateur n'a aucun profil enregistré.");
+            
+            return msg.reply(`👤 **Profil Vocal de ${target.username} :**\n• Nom : \`${config.name || "Par défaut"}\`\n• Verrouillé : \`${config.isLocked}\`\n• Masqué : \`${config.isPrivate}\`\n• Limite : \`${config.userLimit === 0 ? "Illimitée" : config.userLimit + " slots"}\``);
+        }
+
+        if (command === "voice-clearprofile") {
+            const target = msg.mentions.users.first() || await client.users.fetch(args[0]).catch(() => null);
+            if (!target) return msg.reply("❌ Précisez l'utilisateur.");
+            const db = readDB();
+            if (db.savedConfigs[target.id]) {
+                delete db.savedConfigs[target.id];
+                writeDB(db);
+                return msg.reply(`✅ Le profil sauvegardé de ${target.username} a été supprimé pour non-conformité.`);
+            }
+            return msg.reply("L'utilisateur n'avait pas de profil.");
         }
     });
 
@@ -74,6 +205,9 @@ module.exports = (client) => {
                 const userTemplate = db.savedConfigs[member.id];
 
                 let channelName = `🎧｜${member.user.username}`;
+                
+                // ⚠️ SÉCURITÉ DRASTIQUE : RETRAIT DES DROITS NATIFS MUTE/DEAF/MANAGE DU PROPRIÉTAIRE
+                // On lui donne ViewChannel et Connect pour entrer, mais AUCUNE permission d'administration Discord native
                 let contextPermissions = [
                     {
                         id: guild.id,
@@ -84,7 +218,9 @@ module.exports = (client) => {
                         allow: [
                             PermissionsBitField.Flags.ViewChannel,
                             PermissionsBitField.Flags.Connect,
-                            PermissionsBitField.Flags.Speak,
+                            PermissionsBitField.Flags.Speak
+                        ],
+                        deny: [
                             PermissionsBitField.Flags.ManageChannels,
                             PermissionsBitField.Flags.MuteMembers,
                             PermissionsBitField.Flags.DeafenMembers,
@@ -93,7 +229,7 @@ module.exports = (client) => {
                     }
                 ];
 
-                // Injection automatique des droits prioritaires pour le staff Aeroz
+                // Droits d'outrepassement pour le staff
                 STAFF_ROLES.forEach(roleId => {
                     contextPermissions.push({
                         id: roleId,
@@ -101,7 +237,6 @@ module.exports = (client) => {
                     });
                 });
 
-                // Reconstruction dynamique basée sur les archives du stockage local
                 if (userTemplate) {
                     if (userTemplate.name) channelName = userTemplate.name;
                     if (userTemplate.isLocked) {
@@ -121,7 +256,6 @@ module.exports = (client) => {
                     userLimit: userTemplate?.userLimit || 0
                 });
 
-                // Indexation instantanée dans la RAM
                 tempChannels.set(targetChannel.id, {
                     owner: member.id,
                     createdAt: Date.now(),
@@ -130,7 +264,6 @@ module.exports = (client) => {
                     userLimit: userTemplate?.userLimit || 0
                 });
 
-                // Audit Trail
                 const logChan = await guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
                 if (logChan) {
                     logChan.send({ 
@@ -138,15 +271,14 @@ module.exports = (client) => {
                     }).catch(() => {});
                 }
 
-                // Routage réseau de l'utilisateur vers sa nouvelle instance vocale
                 await member.voice.setChannel(targetChannel).catch(() => {});
 
-                // Rendering de l'interface d'administration
+                // Panneau de contrôle interactif
                 const dashboardEmbed = new EmbedBuilder()
                     .setColor("#2b2d31")
                     .setTitle("🎧 Interface Vocale Éphémère — Aeroz Esports")
-                    .setDescription(`Installe-toi confortablement, ${member} !\n\nGère les verrous, la confidentialité, les whitelists et la structure de ton salon de discussion en temps réel à l'aide des options ci-dessous.`)
-                    .setFooter({ text: "Aeroz Automations • Système d'Instance Privée" });
+                    .setDescription(`Installe-toi confortablement, ${member} !\n\nGère ton salon exclusivement via ce panneau.\n\n⚠️ *Conformément à l'**Article 9**, l'utilisation du chat écrit est interdite. Les droits de modération vocale natifs vous sont retirés pour éviter tout abus.*`)
+                    .setFooter({ text: "Aeroz Automations • Commandes par Boutons Uniquement" });
 
                 const controlRow1 = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId("vc_open").setLabel("Ouvrir").setEmoji("🔓").setStyle(ButtonStyle.Success),
@@ -190,7 +322,6 @@ module.exports = (client) => {
             // ---- PIPELINE 2 : EVACUATION ET DESTRUCTION AUTOMATIQUE ----
             const expiredChannel = oldState.channel;
             if (expiredChannel && tempChannels.has(expiredChannel.id)) {
-                // Délai de courtoisie réseau pour parer aux déconnexions/reconnexions intempestives
                 setTimeout(async () => {
                     const currentInstance = await expiredChannel.fetch().catch(() => null);
                     if (!currentInstance) return;
@@ -202,7 +333,7 @@ module.exports = (client) => {
                         const logChan = await expiredChannel.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
                         if (logChan) {
                             logChan.send({ 
-                                embeds: [new EmbedBuilder().setColor("Red").setDescription(`🗑️ **Salon Éphémère Expiré**\n🏷️ **Nom :** \`${expiredChannel.name}\` (Instance nettoyée avec succès)`)] 
+                                embeds: [new EmbedBuilder().setColor("Red").setDescription(`🗑️ **Salon Éphémère Expiré**\n🏷️ **Nom :** \`${expiredChannel.name}\` (Instance nettoyée)`)] 
                             }).catch(() => {});
                         }
                     }
@@ -224,7 +355,7 @@ module.exports = (client) => {
 
             const runtimeData = tempChannels.get(activeVoice.id);
 
-            // MIDDLEWARE DE SÉCURITÉ : Validation de la signature du propriétaire
+            // Validation de la signature du propriétaire
             if (interaction.isButton() || interaction.isUserSelectMenu() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
                 if (runtimeData.owner !== interaction.user.id) {
                     return interaction.reply({ content: "❌ Erreur : Vous n'êtes pas répertorié comme le gérant légal de cette instance vocale.", ephemeral: true });
@@ -238,28 +369,28 @@ module.exports = (client) => {
                         runtimeData.isLocked = false;
                         runtimeData.isPrivate = false;
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { Connect: true, ViewChannel: true });
-                        return interaction.reply({ content: "🔓 **Statut mis à jour :** Les barrières réseau sont levées, le salon est public.", ephemeral: true });
+                        return interaction.reply({ content: "🔓 **Statut mis à jour :** Salon public.", ephemeral: true });
 
                     case "vc_lock":
                         runtimeData.isLocked = true;
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
-                        return interaction.reply({ content: "🔒 **Statut mis à jour :** Le verrou est tiré. Plus aucune connexion extérieure autorisée.", ephemeral: true });
+                        return interaction.reply({ content: "🔒 **Statut mis à jour :** Le salon est fermé aux connexions.", ephemeral: true });
 
                     case "vc_private":
                         runtimeData.isPrivate = true;
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false, Connect: false });
                         await activeVoice.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true, Connect: true });
-                        return interaction.reply({ content: "👁️ **Statut mis à jour :** Le salon est désormais camouflé pour le serveur.", ephemeral: true });
+                        return interaction.reply({ content: "👁️ **Statut mis à jour :** Salon camouflé.", ephemeral: true });
 
                     case "vc_clear":
                         await interaction.deferReply({ ephemeral: true });
-                        const clusterTargets = activeVoice.members.filter(m => m.id !== runtimeData.owner && !m.roles.cache.some(r => STAFF_ROLES.includes(r.id)));
-                        if (clusterTargets.size === 0) return interaction.editReply({ content: "🧹 Aucune cible détectée à l'intérieur de la cellule vocale." });
+                        const clusterTargets = activeVoice.members.filter(m => m.id !== runtimeData.owner && !isStaff(m));
+                        if (clusterTargets.size === 0) return interaction.editReply({ content: "🧹 Aucun utilisateur à expulser." });
                         
                         for (const [_, target] of clusterTargets) {
                             await target.voice.setChannel(null).catch(() => {});
                         }
-                        return interaction.editReply({ content: `🧹 **Purge achevée !** Isolement et expulsion de **${clusterTargets.size} utilisateur(s)**.` });
+                        return interaction.editReply({ content: `🧹 **Purge achevée !** Expulsion de **${clusterTargets.size} utilisateur(s)**.` });
 
                     case "vc_whitelist":
                     case "vc_blacklist":
@@ -270,26 +401,25 @@ module.exports = (client) => {
                     case "vc_mic":
                         const isMuted = activeVoice.permissionOverwrites.cache.get(interaction.guild.id)?.deny.has(PermissionsBitField.Flags.Speak);
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { Speak: isMuted ? true : false });
-                        return interaction.reply({ content: isMuted ? "🎤 **Flux Audio :** Prise de parole libre." : "Static : 🔇 **Flux Audio :** Mode conférence activé (arrivants mutés).", ephemeral: true });
+                        return interaction.reply({ content: isMuted ? "🎤 **Flux Audio :** Prise de parole libre." : "🔇 **Flux Audio :** Mode conférence activé (arrivants muets).", ephemeral: true });
 
                     case "vc_video":
                         const isVideoBlocked = activeVoice.permissionOverwrites.cache.get(interaction.guild.id)?.deny.has(PermissionsBitField.Flags.Stream);
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { Stream: isVideoBlocked ? true : false });
-                        return interaction.reply({ content: isVideoBlocked ? "🎥 **Flux Vidéo :** Flux caméras et flux partages restaurés." : "🚫 **Flux Vidéo :** Transmission d'écrans restreinte.", ephemeral: true });
+                        return interaction.reply({ content: isVideoBlocked ? "🎥 **Flux Vidéo :** Caméras et partages débloqués." : "🚫 **Flux Vidéo :** Partages d'écrans restreints.", ephemeral: true });
 
                     case "vc_soundboard":
                         const isSoundboardBlocked = activeVoice.permissionOverwrites.cache.get(interaction.guild.id)?.deny.has(PermissionsBitField.Flags.UseSoundboard);
                         await activeVoice.permissionOverwrites.edit(interaction.guild.id, { UseSoundboard: isSoundboardBlocked ? true : false });
-                        return interaction.reply({ content: isSoundboardBlocked ? "📣 **Périphériques :** Soundboard global débloqué." : "🚫 **Périphériques :** Dispositifs Soundboard filtrés et interdits.", ephemeral: true });
+                        return interaction.reply({ content: isSoundboardBlocked ? "📣 **Périphériques :** Soundboard débloqué." : "🚫 **Périphériques :** Soundboard désactivé.", ephemeral: true });
 
                     case "vc_status":
-                        // ANTI-RATELIMIT : Analyse de la table de congestion locale
                         const requestLogs = nameCooldowns.get(interaction.user.id) || [];
                         const actualTime = Date.now();
-                        const trackingWindow = requestLogs.filter(timestamp => actualTime - timestamp < 600000); // 10 Min Window
+                        const trackingWindow = requestLogs.filter(timestamp => actualTime - timestamp < 600000);
                         
                         if (trackingWindow.length >= 2) {
-                            return interaction.reply({ content: "⏳ **Alerte API Discord :** Les changements de noms de salons sont restreints à 2 itérations par tranche de 10 minutes par l'infrastructure de Discord. Veuillez temporiser.", ephemeral: true });
+                            return interaction.reply({ content: "⏳ **Discord Rate Limit :** Max 2 changements de nom par 10 minutes. Veuillez patienter.", ephemeral: true });
                         }
 
                         const modal = new ModalBuilder().setCustomId("vc_modal_name").setTitle("Aeroz Automations • Renommer");
@@ -305,21 +435,21 @@ module.exports = (client) => {
                             userLimit: runtimeData.userLimit
                         };
                         writeDB(db);
-                        return interaction.reply({ content: "💾 **Data Synced :** Vos paramètres actuels de session ont été inscrits dans la base de données pour vos futurs lancements.", ephemeral: true });
+                        return interaction.reply({ content: "💾 **Sauvegarde réussie :** Paramètres synchronisés pour tes futurs lancements !", ephemeral: true });
 
                     case "vc_report_staff":
                         const staffDispatch = await interaction.guild.channels.fetch(LOGS_CHANNEL).catch(() => null);
                         if (staffDispatch) {
                             const flashEmbed = new EmbedBuilder()
                                 .setColor("Red")
-                                .setTitle("🚨 DETECTED EMERGENCY CALL — VOICE INTERFACE")
-                                .setDescription(`L'utilisateur ${interaction.user} requiert la présence immédiate de la modération dans son instance vocale privée.\n\n📍 **Liaison directe :** ${activeVoice}`)
+                                .setTitle("🚨 APPEL D'URGENCE SALON VOCAL")
+                                .setDescription(`L'utilisateur ${interaction.user} demande une assistance immédiate de la modération dans son salon privé.\n\n📍 **Salon :** ${activeVoice}`)
                                 .setTimestamp();
                             
-                            await staffDispatch.send({ content: `@here ⚠️ SIGNALEMENT INTERNE ACTIONNÉ`, embeds: [flashEmbed] });
-                            return interaction.reply({ content: "🛡️ **Alerte émise :** Un signalement flash vient d'être routé sur le terminal privé de l'équipe de modération.", ephemeral: true });
+                            await staffDispatch.send({ content: `@here ⚠️ SIGNALEMENT VOCAL`, embeds: [flashEmbed] });
+                            return interaction.reply({ content: "🛡️ **Alerte émise :** Le staff a été notifié.", ephemeral: true });
                         }
-                        return interaction.reply({ content: "❌ Impossible de joindre l'infrastructure de secours.", ephemeral: true });
+                        return interaction.reply({ content: "❌ Impossible de joindre les logs.", ephemeral: true });
                 }
             }
 
@@ -330,45 +460,43 @@ module.exports = (client) => {
                 tempChannels.set(activeVoice.id, runtimeData);
 
                 await activeVoice.setUserLimit(updatedLimit).catch(() => {});
-                return interaction.reply({ content: `👥 **Jauge configurée :** Capacités réseau ajustées à **${updatedLimit === 0 ? "Illimité" : updatedLimit + " slots"}**.`, ephemeral: true });
+                return interaction.reply({ content: `👥 **Slots ajustés :** Limité à **${updatedLimit === 0 ? "Illimité" : updatedLimit + " joueurs"}**.`, ephemeral: true });
             }
 
             // ---- INTERACTION CLUSTER : USER DROPDOWNS MANAGEMENT ----
             if (interaction.isUserSelectMenu()) {
                 await interaction.deferReply({ ephemeral: true });
                 const selectedTarget = interaction.users.first();
-                if (!selectedTarget) return interaction.editReply({ content: "❌ Impossible d'isoler l'empreinte utilisateur." });
+                if (!selectedTarget) return interaction.editReply({ content: "❌ Utilisateur introuvable." });
 
                 if (interaction.customId === "menu_vc_whitelist") {
                     await activeVoice.permissionOverwrites.edit(selectedTarget.id, { Connect: true, ViewChannel: true });
-                    return interaction.editReply({ content: `➕ **Autorisation :** ${selectedTarget} est désormais inscrit sur la liste blanche d'accès.` });
+                    return interaction.editReply({ content: `➕ **Whitelist :** ${selectedTarget} est maintenant autorisé à entrer.` });
                 }
 
                 if (interaction.customId === "menu_vc_blacklist") {
                     await activeVoice.permissionOverwrites.edit(selectedTarget.id, { Connect: false });
                     const memberInstance = await interaction.guild.members.fetch(selectedTarget.id).catch(() => null);
                     
-                    // Expulsion physique immédiate de l'infrastructure en cas de présence active
                     if (memberInstance?.voice.channelId === activeVoice.id) {
                         await memberInstance.voice.setChannel(null).catch(() => {});
                     }
-                    return interaction.editReply({ content: `🚫 **Bannissement :** ${selectedTarget} est banni du salon et sa connexion est rejetée.` });
+                    return interaction.editReply({ content: `🚫 **Blacklist :** ${selectedTarget} a été banni du salon.` });
                 }
 
                 if (interaction.customId === "menu_vc_transfer") {
                     const memberInstance = await interaction.guild.members.fetch(selectedTarget.id).catch(() => null);
                     if (memberInstance?.voice.channelId !== activeVoice.id) {
-                        return interaction.editReply({ content: "❌ Procédure avortée : Le destinataire du transfert de propriété doit obligatoirement être connecté dans votre instance vocale." });
+                        return interaction.editReply({ content: "❌ Le nouveau propriétaire doit obligatoirement être connecté dans le salon pour le transfert." });
                     }
                     
                     runtimeData.owner = selectedTarget.id;
                     tempChannels.set(activeVoice.id, runtimeData);
                     
-                    // Permutation asynchrone des privilèges administratifs Discord
-                    await activeVoice.permissionOverwrites.edit(interaction.user.id, { ManageChannels: false });
-                    await activeVoice.permissionOverwrites.edit(selectedTarget.id, { ManageChannels: true });
+                    await activeVoice.permissionOverwrites.edit(interaction.user.id, { Connect: true });
+                    await activeVoice.permissionOverwrites.edit(selectedTarget.id, { Connect: true });
 
-                    return interaction.editReply({ content: `🔁 **Passage de relais :** Propriété de la cellule transférée avec succès à ${selectedTarget}.` });
+                    return interaction.editReply({ content: `🔁 **Transfert effectué :** ${selectedTarget} est le nouveau gérant.` });
                 }
             }
 
@@ -377,12 +505,11 @@ module.exports = (client) => {
                 const processedName = interaction.fields.getTextInputValue("new_name");
                 await activeVoice.setName(processedName).catch(() => {});
 
-                // Log de l'action dans le limiteur temporel local
                 const currentCooldowns = nameCooldowns.get(interaction.user.id) || [];
                 currentCooldowns.push(Date.now());
                 nameCooldowns.set(interaction.user.id, currentCooldowns);
 
-                return interaction.reply({ content: `📌 **Structure modifiée :** Votre salon porte désormais le titre : \`${processedName}\``, ephemeral: true });
+                return interaction.reply({ content: `📌 Salon renommé : \`${processedName}\``, ephemeral: true });
             }
 
         } catch (runtimeError) {
