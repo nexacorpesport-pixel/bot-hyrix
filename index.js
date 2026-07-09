@@ -58,7 +58,8 @@ const antiNuke = require("./events/antiNuke");
 const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
 const tournamentSystem = require("./events/tournament");
-const effectifSystem = require("./events/effectif"); // 📋 Ajout du système d'effectif
+const effectifSystem = require("./events/effectif"); 
+const statsSystem = require("./events/stats"); // 📊 Ajout du système de statistiques
 
 const GUILD_ID = "1501625824028266676";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
@@ -111,6 +112,9 @@ client.once("ready", async () => {
 
         // 🏆 Chargement du système de tournoi
         tournamentSystem(client);
+
+        // 📊 Chargement du système de statistiques (Écrit + Vocal)
+        statsSystem(client);
 
         console.log("✅ Tous les systèmes Aeroz Esports chargés avec succès.");
 
