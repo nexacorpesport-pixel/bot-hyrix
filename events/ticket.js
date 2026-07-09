@@ -16,13 +16,14 @@ const fs = require("fs");
 const path = require("path");
 const config = require("../data/ticketConfig");
 
-// Identifiants des salons système
+// SYSTEM ROUTING IDS
 const LOGS_CHANNEL = "1521923500439240968";
 const ARCHIVE_CHANNEL = "1521923533272256773";
 const AVIS_CHANNEL = "1521923443006898237"; 
 
-// Base de données locale (Anti-Crash & Statistiques / Blacklist)
+// LOCAL DB ENGINE (STABILITY & STATISTICS)
 const DB_PATH = path.join(__dirname, "../data/ticket_database.json");
+
 if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify({ tickets: {}, blacklist: [], stats: {} }, null, 4));
 
@@ -36,7 +37,7 @@ module.exports = async (client) => {
     console.log("[🎫 TICKET SYSTEM] Chargement de la configuration Premium Aeroz Esports...");
 
     // =====================================================
-    // 1. CRÉATION / SYNC DU PANEL PRINCIPAL
+    // 1. LIFECYCLE : MAIN PANEL SYNC
     // =====================================================
     const panelChannel = await client.channels.fetch(config.PANEL_CHANNEL).catch(() => null);
     if (panelChannel) {
@@ -70,7 +71,7 @@ module.exports = async (client) => {
     }
 
     // =====================================================
-    // 2. ÉVÉNEMENT MESSAGE (PRÉFIXE + & RYTHME D'ACTIVITÉ)
+    // 2. DISPATCHER : ACTIVITY TRACKING & COMMANDS
     // =====================================================
     client.on("messageCreate", async (message) => {
         if (message.author.bot || !message.guild) return;
@@ -98,9 +99,11 @@ module.exports = async (client) => {
     });
 
     // =====================================================
-    // 3. GESTIONNAIRE GLOBAL DES INTERACTIONS
+    // 3. CENTRAL INTERACTION MANAGER
     // =====================================================
     client.on("interactionCreate", async (i) => {
+        
+        // --- DM CHANNELS HANDLE (REVIEWS / FEEDBACKS) ---
         if (!i.guild) {
             const db = readDB();
 
@@ -150,6 +153,7 @@ module.exports = async (client) => {
             return;
         }
 
+        // --- GLOBAL ANTI-SPAM SYSTEM ---
         if (i.isButton() || i.isStringSelectMenu()) {
             const cooldownKey = `${i.user.id}-${i.customId}`;
             if (globalCooldowns.has(cooldownKey)) return i.reply({ content: "⏳ Action trop rapide, veuillez patienter.", ephemeral: true });
@@ -160,7 +164,7 @@ module.exports = async (client) => {
         const db = readDB();
         const context = db.tickets[i.channel.id];
 
-        // --- A. SYSTÈME D'OUVERTURE DE TICKET ---
+        // --- A. TICKET GENERATION GATEWAY ---
         if (i.isStringSelectMenu() && i.customId === "ticket_select") {
             const type = i.values[0];
             if (db.blacklist.includes(i.user.id)) return i.reply({ content: "❌ Vous êtes banni du système de support.", ephemeral: true });
@@ -236,7 +240,7 @@ module.exports = async (client) => {
             return i.reply({ content: `✅ Votre salon privé a été initialisé : ${ticketChannel}`, ephemeral: true });
         }
 
-        // --- B. TRAITEMENT DU FORMULAIRE PR JOUEUR ---
+        // --- B. COMPETITIVE PLAYER SUBMISSION & PARSING ---
         if (i.isButton() && i.customId === "form_joueur") {
             if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Seul le propriétaire du ticket peut interagir.", ephemeral: true });
             const modal = new ModalBuilder().setCustomId("joueur_modal_submit").setTitle("Recrutement Joueur Aeroz");
@@ -298,7 +302,7 @@ module.exports = async (client) => {
             const infoRequestEmbed = new EmbedBuilder()
                 .setColor("#3498db")
                 .setTitle("🏆 Rôle Assigné avec succès !")
-                .setDescription(`Félicitations, vous viens d'obtenir le grade **${roleName}** par rapport à vos statistiques.\n\n**Souhaitez-vous obtenir les informations et la fiche technique complète concernant ce rôle ?**`);
+                .setDescription(`Félicitations, vous venez d'obtenir le grade **${roleName}** par rapport à vos statistiques.\n\n**Souhaitez-vous obtenir les informations et la fiche technique complète concernant ce rôle ?**`);
 
             const rowInfoButtons = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("ask_fiche_yes").setLabel("Oui, je veux voir la fiche").setStyle(ButtonStyle.Primary).setEmoji("🧾"),
@@ -309,7 +313,7 @@ module.exports = async (client) => {
             return i.editReply({ content: "Rôle attribué !" });
         }
 
-        // --- C. ROUTAGE DYNAMIQUE DES QUESTIONS (GRINDER / ESPOIR) ---
+        // --- C. DYNAMIC QUESTIONNAIRE ROUTER ---
         if (i.isButton() && ["ask_fiche_yes", "ask_fiche_no", "more_questions_yes", "more_questions_no"].includes(i.customId)) {
             if (!context || i.user.id !== context.userId) return i.reply({ content: "❌ Réservé à l'auteur du ticket.", ephemeral: true });
             await i.deferUpdate();
@@ -322,11 +326,11 @@ module.exports = async (client) => {
                 if (pole === "grinder") {
                     embedFiche.setColor("#3498db")
                         .setTitle("🏅 FICHE TECHNIQUE : PÔLE GRINDER")
-                        .setDescription("Le pôle Grinder est destiné aux joueurs souhaitant grind sérieusement sous les couleurs de Aeroz Esports.\n\n**L’objectif principal** est de représenter activement la structure à travers votre activité, votre progression et votre présence au sein de la communauté.\n\n**Les joueurs grinders doivent principalement :**\n• Publier régulièrement du contenu lié à leur progression\n• Être actifs sur le serveur Discord\n• Représenter correctement Aeroz Esports\n• Être investis dans leur grind et leurs objectifs\n• Garder une bonne mentalité et un comportement sérieux\n\n*Plus un joueur montre de l’implication et de la régularité, plus nous pourrons lui proposer des opportunités d’évolution.*\n\nNous mettons également en place différents systèmes de progression afin d’aider les grinders à évoluer.\n\n**Conditions :**\n• Étre âgé d’au minimum 13 ans\n• Respecter le règlement\n• Étre actif et motivé");
+                        .setDescription("Le pôle Grinder est destiné aux joueurs souhaitant grind sérieusement sous les couleurs de Aeroz Esports.\n\n**L’objectif principal** est de représenter activement la structure à travers votre activité, votre progression et votre présence au sein de la communauté.\n\n• Publier régulièrement du contenu lié à la progression\n• Être actifs sur le serveur Discord\n• Garder une bonne mentalité et un comportement sérieux\n\nConditions :\n• Âgé d’au minimum 13 ans\n• Respecter le règlement interne.");
                 } else if (pole === "espoir") {
                     embedFiche.setColor("#e67e22")
                         .setTitle("⚡ FICHE TECHNIQUE : PÔLE ESPOIR")
-                        .setDescription("Le pôle Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nNous recherchons des joueurs sérieux, actifs et capables de maintenir une bonne image de Aeroz Esports.\n\n**Conditions :**\n• Étre âgé d’au minimum 13 ans\n• Étre régulier et investi\n• Respecter les membres et le staff\n• Avoir un comportement correct et mature");
+                        .setDescription("Le pôle Espoir est conçu pour les joueurs souhaitant progresser dans un cadre plus compétitif.\n\nConditions :\n• Âgé d’au minimum 13 ans\n• Régulier, mature et investi dans le line-up.");
                 }
 
                 await i.channel.send({ embeds: [embedFiche] });
@@ -381,7 +385,7 @@ module.exports = async (client) => {
             }
         }
 
-        // --- D. STAFF & AUDIOVISUEL SUBMITS ---
+        // --- D. STAFF & AUDIOVISUEL FORM MODULES ---
         if (i.isButton() && i.customId === "form_staff") {
             if (!context || context.userId !== i.user.id) return i.reply({ content: "❌ Action non autorisée.", ephemeral: true });
             const modal = new ModalBuilder().setCustomId("staff_modal_submit").setTitle("Candidature Équipe Aeroz");
@@ -420,7 +424,7 @@ module.exports = async (client) => {
             return i.editReply({ content: "Profil mis à jour !" });
         }
 
-        // --- E. ACTIONS DU STAFF SÉCURISÉES ---
+        // --- E. SECURED MODERATION UTILITIES ---
         const isStaffUser = i.member.roles.cache.some(r => (config.ROLES[context ? context.type : "autre"] || []).includes(r.id)) || i.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
 
         if (i.isButton() && ["ticket_add_user", "ticket_remove_user", "ticket_create_voice"].includes(i.customId)) {
@@ -457,7 +461,7 @@ module.exports = async (client) => {
             return i.editReply({ content: "Permissions mises à jour !" });
         }
 
-        // --- F. BOUTONS PANELS DU STAFF (CLAIM, CLOSE, DELETE, BLACKLIST) ---
+        // --- F. ACTION PANEL ROUTING (CLAIM / CLOSURE Pipeline) ---
         if (i.isButton() && ["claim", "close", "delete", "force_close_confirm", "cancel_close", "blacklist_user"].includes(i.customId)) {
             if (!isStaffUser && !["cancel_close"].includes(i.customId)) {
                 return i.reply({ content: "❌ Action refusée. Droits de Modération requis.", ephemeral: true });
@@ -498,35 +502,36 @@ module.exports = async (client) => {
                     .setEmoji("📌");
 
                 await i.message.edit({ components: [updatedRow, i.message.components[1]].filter(Boolean) }).catch(() => {});
-                return i.channel.send({ embeds: [new EmbedBuilder().setColor("Green").setDescription(`📌 Le ticket a été pris en charge par ${i.user}.`)] });
+                return i.channel.send({ embeds: [new EmbedBuilder().setColor("Green").setDescription(`📌 Le ticket est désormais managé par ${i.user}.`)] });
             }
 
             if (i.customId === "close") {
                 await i.deferReply();
-                const confirmEmbed = new EmbedBuilder().setColor("Orange").setDescription("🔒 **Voulez-vous initier la procédure de fermeture définitive du ticket ?**");
-                const rowConfirm = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Confirmer").setStyle(ButtonStyle.Danger),
+                const confirmRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("force_close_confirm").setLabel("Confirmer la fermeture").setStyle(ButtonStyle.Danger),
                     new ButtonBuilder().setCustomId("cancel_close").setLabel("Annuler").setStyle(ButtonStyle.Secondary)
                 );
-                return i.editReply({ embeds: [confirmEmbed], components: [rowConfirm] });
+                return i.editReply({ 
+                    embeds: [new EmbedBuilder().setColor("Orange").setDescription("🔒 **Voulez-vous vraiment clore cet espace de discussion ?**")], 
+                    components: [confirmRow] 
+                });
             }
 
             if (i.customId === "cancel_close") {
                 await i.deferUpdate();
-                return i.message.delete().catch(() => {});
+                return i.deleteReply().catch(() => {});
             }
 
             if (i.customId === "force_close_confirm") {
                 await i.deferUpdate();
+                await i.channel.send({ content: "💾 Archivage et génération du rapport en cours..." });
                 return await generateSystemClose(i.channel, client, context);
             }
 
             if (i.customId === "delete") {
-                await i.reply({ content: "🗑️ Suppression immédiate du salon en cours..." });
-                if (db.tickets[i.channel.id]) {
-                    delete db.tickets[i.channel.id];
-                    writeDB(db);
-                }
+                await i.reply({ content: "🗑️ Suppression immédiate du salon de l'infrastructure..." });
+                delete db.tickets[i.channel.id];
+                writeDB(db);
                 return setTimeout(() => i.channel.delete().catch(() => {}), 1500);
             }
         }
@@ -534,49 +539,49 @@ module.exports = async (client) => {
 };
 
 // =====================================================
-// FONCTION : TRANSCRIPT & ARCHIVAGE DU TICKET
+// 4. MODULE INTERNAL : PIPELINE D'ARCHIVAGE (TRANSCRIPTS)
 // =====================================================
 async function generateSystemClose(channel, client, context) {
     const db = readDB();
-    if (db.tickets[channel.id]) {
-        db.tickets[channel.id].status = "closed";
-        writeDB(db);
+    
+    // Fetch des messages pour le log brut (limite Discord API fixée à 100)
+    const fetchedMessages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    let transcriptText = `--- ARCHIVE TICKET AEROZ ESPORTS : ${channel.name} ---\n`;
+    transcriptText += `Créé par : ${context?.username ?? "Inconnu"} (${context?.userId ?? "ID Inconnu"})\n`;
+    transcriptText += `Date de fermeture : ${new Date().toLocaleString("fr-FR")}\n`;
+    transcriptText += `--------------------------------------------------\n\n`;
+
+    if (fetchedMessages?.size) {
+        // Inversion de la collection pour retrouver le fil chronologique (haut vers le bas)
+        const sorted = fetchedMessages.reverse();
+        sorted.forEach(m => {
+            const timestamp = m.createdAt.toLocaleString("fr-FR");
+            transcriptText += `[${timestamp}] ${m.author.tag}: ${m.content}\n`;
+            if (m.embeds.length > 0) transcriptText += `   -> [Embed masqué dans le dump brut]\n`;
+        });
     }
 
-    const fetchedMessages = await channel.messages.fetch({ limit: 100 }).catch(() => []);
-    let transcriptString = `--- TRANSCRIPT DU TICKET : ${channel.name} ---\nCréé par : ID ${context?.userId || "Inconnu"}\n\n`;
-    
-    const sortedMessages = [...fetchedMessages.values()].reverse();
-    sortedMessages.forEach(msg => {
-        transcriptString += `[${new Date(msg.createdAt).toLocaleString("fr-FR")}] ${msg.author.tag}: ${msg.content}\n`;
-    });
+    const buffer = Buffer.from(transcriptText, "utf-8");
+    const attachment = new AttachmentBuilder(buffer, { name: `transcript-${channel.name}.txt` });
 
-    const bufferTranscript = Buffer.from(transcriptString, "utf-8");
-    const transcriptFile = new AttachmentBuilder(bufferTranscript, { name: `transcript-${channel.name}.txt` });
-
-    const archiveChannel = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
-    if (archiveChannel) {
+    const archiveChan = await client.channels.fetch(ARCHIVE_CHANNEL).catch(() => null);
+    if (archiveChan) {
         const archiveEmbed = new EmbedBuilder()
             .setColor("#2c3e50")
-            .setTitle(`📂 Archive Ticket — ${channel.name}`)
+            .setTitle("💾 Archive de Discussion Disponible")
             .addFields(
-                { name: "Demandeur ID", value: `\`${context?.userId || "Inconnu"}\``, inline: true },
-                { name: "Catégorie", value: `${context?.type || "Non définie"}`.toUpperCase(), inline: true },
-                { name: "Messages", value: `\`${context?.messageCount || 0}\``, inline: true }
+                { name: "Salon", value: `\`${channel.name}\``, inline: true },
+                { name: "Propriétaire", value: context ? `<@${context.userId}>` : "Inconnu", inline: true },
+                { name: "Messages comptés", value: `\`${context?.messageCount ?? 0}\``, inline: true }
             )
             .setTimestamp();
-        await archiveChannel.send({ embeds: [archiveEmbed], files: [transcriptFile] }).catch(() => {});
+
+        await archiveChan.send({ embeds: [archiveEmbed], files: [attachment] }).catch(() => {});
     }
 
-    const logChannel = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
-    if (logChannel) {
-        logChannel.send({ embeds: [new EmbedBuilder().setColor("Grey").setDescription(`🔒 Le salon textuel \`${channel.name}\` a été fermé et archivé.`)] });
-    }
+    delete db.tickets[channel.id];
+    writeDB(db);
 
-    if (db.tickets[channel.id]) {
-        delete db.tickets[channel.id];
-        writeDB(db);
-    }
-
+    // Buffer de sécurité de 3s pour garantir l'envoi réseau de la pièce jointe
     return setTimeout(() => channel.delete().catch(() => {}), 3000);
 }
