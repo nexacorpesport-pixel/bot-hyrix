@@ -5,273 +5,246 @@ const {
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
-    MessageFlags // Ajouté pour corriger le warning "ephemeral"
+    MessageFlags
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
-// Chemin pour la persistance locale de la structure du serveur
 const DB_PATH = path.join(__dirname, "fortress_security_db.json");
 
-// Initialisation de la base de données locale
-let backupDatabase = { channels: {}, roles: {}, bunkerActive: false };
+let db = { channels: {}, roles: {}, bunkerActive: false };
 if (fs.existsSync(DB_PATH)) {
     try {
-        backupDatabase = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+        db = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     } catch (e) {
-        console.error("[👑 AEROZ] Erreur de lecture de la base de données locale, réinitialisation...");
+        console.log("[Security] Base de données corrompue, reset en cours...");
     }
 }
 
-const saveDatabase = () => {
+const saveDb = () => {
     try {
-        fs.writeFileSync(DB_PATH, JSON.stringify(backupDatabase, null, 2), "utf-8");
+        fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf-8");
     } catch (e) {
-        console.error("[👑 AEROZ] Erreur d'écriture dans la base de données locale.");
+        console.log("[Security] Erreur sauvegarde DB");
     }
 };
 
-// Configurations strictes du système
-const TIME_WINDOW = 10 * 1000; 
-const ACTION_LIMIT = 2;        // Seuil ultra-serré pour un blocage immédiat
-const ACCOUNT_AGE_LIMIT = 24 * 60 * 60 * 1000; 
+// Configs anti-nuke & anti-raid
+const WINDOW_TIME = 10000; 
+const LIMIT_ACTIONS = 2;       
+const MIN_AGE_ACCOUNT = 86400000; 
 
-// Flux de Raid Global
-const RAID_FLUX_WINDOW = 30 * 1000; 
-const RAID_FLUX_LIMIT = 5;          
-let globalJoinTimestamps = [];
-let FLUX_RAID_ALERT_ACTIVE = false;
+const RAID_WINDOW = 30000; 
+const RAID_LIMIT = 5;          
+let recentJoins = [];
+let raidAlertOn = false;
 
-// Configuration du Mode Bunker Récupéré
-const BUNKER_SECRET_KEY = "AZ-99X-BUNK-7421-ZOR";
-const BUNKER_CATEGORY_ID = "1522353418226896997"; // ID fourni
-const BUNKER_ROLE_ID = "1522354308635689040";
+const BUNKER_KEY = "AZ-99X-BUNK-7421-ZOR";
+const BUNKER_CAT = "1522353418226896997"; 
+const BUNKER_ROLE = "1522354308635689040";
 
-// Mémoires tampons (RAM) pour l'analyse comportementale
-const staffScoreCounter = new Map();
-const actionTimestamps = new Map();
+const staffScores = new Map();
+const staffCooldowns = new Map();
 
 module.exports = (client) => {
 
-    console.log("[👑 AEROZ SECURITY] Architecture Bunker Lourde et Système Anti-Nuke de Niveau Industriel Armés.");
+    console.log("[Aeroz Security] Module activé et opérationnel.");
 
-    const WHITELIST_CEO_ID = "1501625944148934758";
-    const SUSPECT_ROLE_ID = "1522353482252947508"; // ID fourni
+    const OWNER_ID = "1501625944148934758";
+    const SUSPECT_ROLE = "1522353482252947508"; 
     
     const CHANNELS = {
         ANTI_RAID: "1522354528626802728",
-        LOGS_SALONS: "1522354627633217597",
+        LOGS_CHANNELS: "1522354627633217597",
         LOGS_ROLES: "1522354480631517204",
-        LOGS_MODERATION: "1522354679831461949"
+        LOGS_MOD: "1522354679831461949"
     };
 
-    const sendLog = async (channelId, embed) => {
-        const channel = await client.channels.fetch(channelId).catch(() => null);
-        if (channel) channel.send({ embeds: [embed.setTimestamp()] }).catch(() => {});
+    const sendLog = async (chanId, embed) => {
+        const chan = await client.channels.fetch(chanId).catch(() => null);
+        if (chan) chan.send({ embeds: [embed.setTimestamp()] }).catch(() => {});
     };
 
-    // Algorithme d'isolation instantané des privilèges du Staff ou Blacklist des bots
-    const isolateStaff = async (guild, member, reason) => {
-        if (member.id === WHITELIST_CEO_ID || member.id === guild.ownerId) return false;
+    const removeStaffPermissions = async (guild, member, reason) => {
+        if (member.id === OWNER_ID || member.id === guild.ownerId) return false;
 
         if (member.user.bot) {
-            await member.ban({ reason: `🚨 BLACKLIST BOT EXTRÊME : ${reason}` }).catch(() => {});
+            await member.ban({ reason: `[Anti-Nuke] Bot suspect détecté: ${reason}` }).catch(() => {});
             return true;
         }
 
-        const rolesToRemove = member.roles.cache.filter(r => r.id !== guild.roles.everyone.id);
-        await member.roles.remove(rolesToRemove, `Sécurité Anti-Nuke : ${reason}`).catch(() => {});
+        const rolesToStrip = member.roles.cache.filter(r => r.id !== guild.roles.everyone.id);
+        await member.roles.remove(rolesToStrip, `[Security] ${reason}`).catch(() => {});
 
-        const emergencyEmbed = new EmbedBuilder()
-            .setColor("#8b0000") // Code Hexa pour Rouge Foncé 🔴
-            .setTitle("🚨 DESTITUTION IMMÉDIATE DU COMPTE STAFF 🚨")
-            .setDescription(`**Auteur :** ${member.user} (\`${member.id}\`)\n**Raison :** ${reason}\n\n🔒 **Mesure :** Quarantaine totale appliquée par retrait des rôles.`);
+        const alertEmbed = new EmbedBuilder()
+            .setColor("#b71c1c") 
+            .setTitle("🚨 COMPTE STAFF SÉCURISÉ (QUARANTAINE) 🚨")
+            .setDescription(`**Utilisateur :** ${member.user} (\`${member.id}\`)\n**Raison :** ${reason}\n\n⚠️ Par mesure de sécurité, tous ses rôles lui ont été retirés.`);
 
-        const logChannel = await guild.channels.fetch(CHANNELS.ANTI_RAID).catch(() => null);
-        if (logChannel) {
-            logChannel.send({ content: `<@${WHITELIST_CEO_ID}>`, embeds: [emergencyEmbed] }).catch(() => {});
+        const logChan = await guild.channels.fetch(CHANNELS.ANTI_RAID).catch(() => null);
+        if (logChan) {
+            logChan.send({ content: `<@${OWNER_ID}>`, embeds: [alertEmbed] }).catch(() => {});
         }
         return true;
     };
 
-    // Analyse comportementale par accumulation de score
-    const checkHeuristicLimit = async (guild, executorId, scoreCost, actionTypeStr) => {
-        if (executorId === WHITELIST_CEO_ID || executorId === guild.ownerId) return false;
+    const verifyStaffActivity = async (guild, userId, penalty, actionLabel) => {
+        if (userId === OWNER_ID || userId === guild.ownerId) return false;
 
-        const now = Date.now();
-        if (!actionTimestamps.has(executorId)) actionTimestamps.set(executorId, []);
+        const timeNow = Date.now();
+        if (!staffCooldowns.has(userId)) staffCooldowns.set(userId, []);
         
-        let timestamps = actionTimestamps.get(executorId).filter(t => now - t < TIME_WINDOW);
-        timestamps.push(now);
-        actionTimestamps.set(executorId, timestamps);
+        let history = staffCooldowns.get(userId).filter(t => timeNow - t < WINDOW_TIME);
+        history.push(timeNow);
+        staffCooldowns.set(userId, history);
 
-        let currentScore = (staffScoreCounter.get(executorId) || 0) + scoreCost;
-        staffScoreCounter.set(executorId, currentScore);
+        let userScore = (staffScores.get(userId) || 0) + penalty;
+        staffScores.set(userId, userScore);
 
-        // Réinitialisation progressive du score hors de la fenêtre
         setTimeout(() => {
-            let s = staffScoreCounter.get(executorId) || 0;
-            if (s > 0) staffScoreCounter.set(executorId, Math.max(0, s - scoreCost));
-        }, TIME_WINDOW);
+            let current = staffScores.get(userId) || 0;
+            if (current > 0) staffScores.set(userId, Math.max(0, current - penalty));
+        }, WINDOW_TIME);
 
-        if (timestamps.length >= ACTION_LIMIT || currentScore >= 10) {
-            const staffMember = await guild.members.fetch(executorId).catch(() => null);
-            if (staffMember) {
-                await isolateStaff(guild, staffMember, `Détection Heuristique : Abus d'actions administratives (${actionTypeStr})`);
+        if (history.length >= LIMIT_ACTIONS || userScore >= 10) {
+            const staffUser = await guild.members.fetch(userId).catch(() => null);
+            if (staffUser) {
+                await removeStaffPermissions(guild, staffUser, `Abus d'actions admin rapides (${actionLabel})`);
                 return true;
             }
         }
         return false;
     };
 
-    // =====================================================
-    // 📨 ACTIVATION ET VERROUILLAGE TOTAL DU MODE BUNKER
-    // =====================================================
-    client.on("messageCreate", async (message) => {
-        if (!message.guild || message.author.bot) return;
+    // --- ECOUTEURS MESSAGES ---
+    client.on("messageCreate", async (msg) => {
+        if (!msg.guild || msg.author.bot) return;
 
-        // Blocage hermétique des liens internet sous confinement Bunker
-        if (backupDatabase.bunkerActive && message.author.id !== WHITELIST_CEO_ID) {
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-            if (urlRegex.test(message.content)) {
-                await message.delete().catch(() => {});
-                return message.channel.send(`⚠️ ${message.author}, le partage de liens et de médias externes est rigoureusement interdit pendant le protocole Bunker d'Aeroz Esports.`)
-                    .then(m => setTimeout(() => m.delete().catch(() => {}), 4000));
+        // Restriction de liens si bunker ON
+        if (db.bunkerActive && msg.author.id !== OWNER_ID) {
+            const hasLink = /(https?:\/\/[^\s]+)/g.test(msg.content);
+            if (hasLink) {
+                await msg.delete().catch(() => {});
+                return msg.channel.send(`⚠️ ${msg.author}, les liens et médias sont interdits pendant que le mode Bunker est actif.`)
+                    .then(m => setTimeout(() => m.delete().catch(() => {}), 3500));
             }
         }
 
-        // Commande +bunker-on
-        if (message.content.startsWith("+bunker-on")) {
-            if (message.author.id !== WHITELIST_CEO_ID) {
-                const intruder = message.member;
-                if (intruder) await isolateStaff(message.guild, intruder, "Tentative d'activation illégale du Mode Bunker");
-                return await message.delete().catch(() => {});
+        // Commande ON
+        if (msg.content.startsWith("+bunker-on")) {
+            if (msg.author.id !== OWNER_ID) {
+                if (msg.member) await removeStaffPermissions(msg.guild, msg.member, "Tentative d'allumage forcée du Bunker");
+                return await msg.delete().catch(() => {});
             }
 
-            const args = message.content.split(" ");
-            if (args[1] === BUNKER_SECRET_KEY) {
-                backupDatabase.bunkerActive = true;
-                saveDatabase();
-                await message.delete().catch(() => {});
+            const checkKey = msg.content.split(" ")[1];
+            if (checkKey === BUNKER_KEY) {
+                db.bunkerActive = true;
+                saveDb();
+                await msg.delete().catch(() => {});
                 
-                const bunkerEmbed = new EmbedBuilder()
-                    .setColor("#8b0000") // Code Hexa pour Rouge Foncé 🔴
-                    .setTitle("🛡️ ÉTAT DE SIÈGE : ENCLENCHEMENT DU BUNKER AEROZ")
-                    .setDescription(`🔒 **La catégorie de confinement <#${BUNKER_CATEGORY_ID}> est sous protection militaire.**\n\n⚡ **Contrôles stricts appliqués :**\n• Révocation définitive de toutes les invitations du serveur.\n• Nettoyage et déconnexion instantanée des salons vocaux.\n• Injection automatique du rôle de restriction à tous les membres.\n• Chasse et blocage dynamique des flux HTTP/HTTPS.`);
-                sendLog(CHANNELS.ANTI_RAID, bunkerEmbed);
+                const onEmbed = new EmbedBuilder()
+                    .setColor("#b71c1c")
+                    .setTitle("🛡️ MODE BUNKER ACTIVÉ — AEROZ")
+                    .setDescription(`Le salon <#${BUNKER_CAT}> a été confiné.\n\n**Mesures prises immédiatement :**\n- Suppression de toutes les invitations valides.\n- Déconnexion forcée des salons vocaux.\n- Attribution automatique du rôle de restriction.\n- Blocage des liens externes.`);
+                sendLog(CHANNELS.ANTI_RAID, onEmbed);
 
-                const guild = message.guild;
+                const server = msg.guild;
 
-                const invites = await guild.invites.fetch().catch(() => null);
-                if (invites) {
-                    invites.forEach(invite => invite.delete("Protocole Bunker Actif").catch(() => {}));
+                const currentInvites = await server.invites.fetch().catch(() => null);
+                if (currentInvites) {
+                    currentInvites.forEach(inv => inv.delete("Bunker ON").catch(() => {}));
                 }
 
-                const members = await guild.members.fetch();
-                members.forEach(member => {
-                    if (member.voice.channelId) {
-                        member.voice.disconnect("Alerte Confinement Bunker").catch(() => {});
-                    }
-                    if (!member.user.bot && member.id !== WHITELIST_CEO_ID) {
-                        member.roles.add(BUNKER_ROLE_ID, "Alerte Sécurité : Confinement Bunker").catch(() => {});
+                const allMembers = await server.members.fetch();
+                allMembers.forEach(m => {
+                    if (m.voice.channelId) m.voice.disconnect("Alerte Confinement").catch(() => {});
+                    if (!m.user.bot && m.id !== OWNER_ID) {
+                        m.roles.add(BUNKER_ROLE, "Confinement Bunker").catch(() => {});
                     }
                 });
-                return;
             } else {
-                return message.reply("❌ Clé de sécurité maîtresse invalide.").then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+                return msg.reply("❌ Clé incorrecte.").then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
             }
         }
 
-        // Commande +bunker-off
-        if (message.content.startsWith("+bunker-off")) {
-            if (message.author.id !== WHITELIST_CEO_ID) return;
+        // Commande OFF
+        if (msg.content.startsWith("+bunker-off")) {
+            if (msg.author.id !== OWNER_ID) return;
             
-            const args = message.content.split(" ");
-            if (args[1] === BUNKER_SECRET_KEY) {
-                backupDatabase.bunkerActive = false;
-                saveDatabase();
-                await message.delete().catch(() => {});
+            const checkKey = msg.content.split(" ")[1];
+            if (checkKey === BUNKER_KEY) {
+                db.bunkerActive = false;
+                saveDb();
+                await msg.delete().catch(() => {});
                 
-                const bunkerOffEmbed = new EmbedBuilder()
-                    .setColor("#2ecc71") // Vert Hexa stable 🟢
-                    .setTitle("🔓 NORMALISATION DU SERVEUR : FIN DU SIÈGE AEROZ")
-                    .setDescription("♻️ Retrait globalisé du rôle de confinement et réouverture ordonnée de la structure.");
-                sendLog(CHANNELS.ANTI_RAID, bunkerOffEmbed);
+                const offEmbed = new EmbedBuilder()
+                    .setColor("#2e7d32")
+                    .setTitle("🔓 MODE BUNKER DÉSACTIVÉ — AEROZ")
+                    .setDescription("Le serveur retourne à la normale. Retrait progressif des restrictions.");
+                sendLog(CHANNELS.ANTI_RAID, offEmbed);
 
-                const members = await message.guild.members.fetch();
-                members.forEach(member => {
-                    if (member.roles.cache.has(BUNKER_ROLE_ID)) {
-                        member.roles.remove(BUNKER_ROLE_ID, "Fin du protocole de crise").catch(() => {});
+                const allMembers = await msg.guild.members.fetch();
+                allMembers.forEach(m => {
+                    if (m.roles.cache.has(BUNKER_ROLE)) {
+                        m.roles.remove(BUNKER_ROLE, "Fin de l'alerte").catch(() => {});
                     }
                 });
-                return;
             } else {
-                return message.reply("❌ Clé de sécurité maîtresse invalide.").then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+                return msg.reply("❌ Clé incorrecte.").then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
             }
         }
     });
 
-    // Protection des pseudos sous Bunker
-    client.on("guildMemberUpdate", async (oldMember, newMember) => {
-        if (!backupDatabase.bunkerActive) return;
-        if (newMember.id === WHITELIST_CEO_ID) return;
-
-        if (oldMember.nickname !== newMember.nickname) {
-            await newMember.setNickname(oldMember.nickname, "Sécurité Bunker : Verrouillage des identités").catch(() => {});
+    // Anti-Changement de pseudo sous bunker
+    client.on("guildMemberUpdate", async (oldM, newM) => {
+        if (!db.bunkerActive || newM.id === OWNER_ID) return;
+        if (oldM.nickname !== newM.nickname) {
+            await newM.setNickname(oldM.nickname, "Bunker: Pseudos verrouillés").catch(() => {});
         }
     });
 
-    // =====================================================
-    // ⚙️ PROTECTION DE LA STRUCTURE ET DU SERVEUR (ANTI-NUKE)
-    // =====================================================
-    
-    // Protection contre les modifications malveillantes du serveur (Nom, Icône, Vanité)
-    client.on("guildUpdate", async (oldGuild, newGuild) => {
-        const auditLogs = await newGuild.fetchAuditLogs({ limit: 1, type: 1 }).catch(() => null);
-        const entry = auditLogs?.entries.first();
-        if (!entry) return;
+    // Anti Guild Modification
+    client.on("guildUpdate", async (oldG, newG) => {
+        const logs = await newG.fetchAuditLogs({ limit: 1, type: 1 }).catch(() => null);
+        const logEntry = logs?.entries.first();
+        if (!logEntry) return;
 
-        const executor = entry.executor;
-        if (executor.id === WHITELIST_CEO_ID || executor.id === newGuild.ownerId) return;
+        const user = logEntry.executor;
+        if (user.id === OWNER_ID || user.id === newG.ownerId) return;
 
-        // Rétablissement immédiat des paramètres critiques
-        if (oldGuild.name !== newGuild.name) await newGuild.setName(oldGuild.name).catch(() => {});
-        if (oldGuild.icon !== newGuild.icon) await newGuild.setIcon(oldGuild.iconURL()).catch(() => {});
-        if (oldGuild.features.includes("VANITY_URL") && oldGuild.vanityURLCode !== newGuild.vanityURLCode) {
-            // Optionnel : Remettre le code si disponible via l'API avancée
-        }
+        if (oldG.name !== newG.name) await newG.setName(oldG.name).catch(() => {});
+        if (oldG.icon !== newG.icon) await newG.setIcon(oldG.iconURL()).catch(() => {});
 
-        const staffMember = await newGuild.members.fetch(executor.id).catch(() => null);
-        if (staffMember) await isolateStaff(newGuild, staffMember, "Tentative d'altération des paramètres globaux du serveur");
+        const badStaff = await newG.members.fetch(user.id).catch(() => null);
+        if (badStaff) await removeStaffPermissions(newG, badStaff, "Modification non autorisée des paramètres du serveur");
     });
 
-    // Surveillance de l'effacement de salons
+    // Protection des salons
     client.on("channelDelete", async (channel) => {
         if (!channel.guild) return;
-        const guild = channel.guild;
-        const auditLogs = await guild.fetchAuditLogs({ limit: 1, type: 12 }).catch(() => null);
-        const entry = auditLogs?.entries.first();
-        if (!entry) return;
+        const server = channel.guild;
+        const logs = await server.fetchAuditLogs({ limit: 1, type: 12 }).catch(() => null);
+        const logEntry = logs?.entries.first();
+        if (!logEntry) return;
 
-        const executor = entry.executor;
+        const user = logEntry.executor;
 
-        // Sauvegarde miroir automatisée en base de données locale
-        backupDatabase.channels[channel.id] = {
+        db.channels[channel.id] = {
             name: channel.name,
             type: channel.type,
             parent: channel.parentId,
             position: channel.position,
             permissionOverwrites: channel.permissionOverwrites.cache.map(o => ({ id: o.id, type: o.type, allow: o.allow.bitfield.toString(), deny: o.deny.bitfield.toString() }))
         };
-        saveDatabase();
+        saveDb();
 
-        if (backupDatabase.bunkerActive && (channel.id === BUNKER_CATEGORY_ID || channel.parentId === BUNKER_CATEGORY_ID)) {
-            const staffMember = await guild.members.fetch(executor.id).catch(() => null);
-            if (staffMember) {
-                await isolateStaff(guild, staffMember, "Tentative de sabotage de la zone Bunkerisée");
+        if (db.bunkerActive && (channel.id === BUNKER_CAT || channel.parentId === BUNKER_CAT)) {
+            const badStaff = await server.members.fetch(user.id).catch(() => null);
+            if (badStaff) {
+                await removeStaffPermissions(server, badStaff, "Tentative de suppression de la zone protégée");
                 
-                // Recréation instantanée à la position exacte
-                await guild.channels.create({
+                await server.channels.create({
                     name: channel.name,
                     type: channel.type,
                     parent: channel.parentId,
@@ -283,179 +256,165 @@ module.exports = (client) => {
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#e67e22") // Orange Hexa stable 🟠
-            .setTitle("🗑️ Salon Supprimé")
-            .setDescription(`**Nom :** \`#${channel.name}\`\n**Auteur :** <@${executor.id}>`);
-        sendLog(CHANNELS.LOGS_SALONS, logEmbed);
+            .setColor("#ef6c00")
+            .setTitle("🗑️ Salon supprimé")
+            .setDescription(`**Salon :** \`#${channel.name}\`\n**Par :** <@${user.id}>`);
+        sendLog(CHANNELS.LOGS_CHANNELS, logEmbed);
 
-        await checkHeuristicLimit(guild, executor.id, 4, "Suppression de salon");
+        await verifyStaffActivity(server, user.id, 4, "Suppression Salon");
     });
 
-    // Surveillance de la création de salons
     client.on("channelCreate", async (channel) => {
         if (!channel.guild) return;
-        const guild = channel.guild;
-        const auditLogs = await guild.fetchAuditLogs({ limit: 1, type: 10 }).catch(() => null);
-        const entry = auditLogs?.entries.first();
-        if (!entry) return;
+        const server = channel.guild;
+        const logs = await server.fetchAuditLogs({ limit: 1, type: 10 }).catch(() => null);
+        const logEntry = logs?.entries.first();
+        if (!logEntry) return;
 
-        const executor = entry.executor;
+        const user = logEntry.executor;
 
-        if (backupDatabase.bunkerActive && executor.id !== WHITELIST_CEO_ID) {
-            await channel.delete("Mode Bunker strict actif").catch(() => {});
-            const staffMember = await guild.members.fetch(executor.id).catch(() => null);
-            if (staffMember) await isolateStaff(guild, staffMember, "Modification géographique interdite sous Bunker");
+        if (db.bunkerActive && user.id !== OWNER_ID) {
+            await channel.delete("Sécurité Bunker").catch(() => {});
+            const badStaff = await server.members.fetch(user.id).catch(() => null);
+            if (badStaff) await removeStaffPermissions(server, badStaff, "Création de salon interdite sous Bunker");
             return;
         }
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#2ecc71") // Vert Hexa stable 🟢
-            .setTitle("➕ Salon Créé")
-            .setDescription(`**Salon :** ${channel}\n**Auteur :** <@${executor.id}>`);
-        sendLog(CHANNELS.LOGS_SALONS, logEmbed);
+            .setColor("#2e7d32")
+            .setTitle("➕ Salon créé")
+            .setDescription(`**Salon :** ${channel}\n**Par :** <@${user.id}>`);
+        sendLog(CHANNELS.LOGS_CHANNELS, logEmbed);
 
-        await checkHeuristicLimit(guild, executor.id, 3, "Création de salon");
+        await verifyStaffActivity(server, user.id, 3, "Création Salon");
     });
 
-    // =====================================================
-    // 🚪 FLUX ENTRÉES : FILTRAGE ANTI-RAID AUTOMATISÉ
-    // =====================================================
+    // Anti-Raid Joins
     client.on("guildMemberAdd", async (member) => {
-        const guild = member.guild;
-        const now = Date.now();
+        const server = member.guild;
+        const timeNow = Date.now();
 
-        globalJoinTimestamps = globalJoinTimestamps.filter(t => now - t < RAID_FLUX_WINDOW);
-        globalJoinTimestamps.push(now);
+        recentJoins = recentJoins.filter(t => timeNow - t < RAID_WINDOW);
+        recentJoins.push(timeNow);
 
-        if (globalJoinTimestamps.length >= RAID_FLUX_LIMIT && !FLUX_RAID_ALERT_ACTIVE) {
-            FLUX_RAID_ALERT_ACTIVE = true;
-            const alertFluxEmbed = new EmbedBuilder()
-                .setColor("#e67e22") // Orange Hexa stable 🟠
-                .setTitle("⚠️ SEUILS DE FLUX ATTEINTS : ATTAQUE SOUPÇONNÉE")
-                .setDescription(`Une grappe de \`${globalJoinTimestamps.length}\` connexions simultanées détectée.\n\n🛡️ Activation du verrouillage systématique par étiquette **Suspect**.`);
-            sendLog(CHANNELS.ANTI_RAID, alertFluxEmbed);
+        if (recentJoins.length >= RAID_LIMIT && !raidAlertOn) {
+            raidAlertOn = true;
+            const alertEmbed = new EmbedBuilder()
+                .setColor("#ef6c00")
+                .setTitle("⚠️ RECONNAISSANCE DE RAID EN COURS")
+                .setDescription(`Détection de \`${recentJoins.length}\` entrées trop rapides.\n\nTous les nouveaux comptes passent automatiquement en restriction.`);
+            sendLog(CHANNELS.ANTI_RAID, alertEmbed);
         }
 
-        // Interception absolue des injections de bots tiers
         if (member.user.bot) {
-            const auditLogs = await guild.fetchAuditLogs({ limit: 1, type: 28 }).catch(() => null);
-            const entry = auditLogs?.entries.first();
+            const logs = await server.fetchAuditLogs({ limit: 1, type: 28 }).catch(() => null);
+            const logEntry = logs?.entries.first();
             
-            if (entry && entry.executor.id !== WHITELIST_CEO_ID) {
-                await member.ban({ reason: "Bot tiers non certifié par la Whitelist" }).catch(() => {});
-                const staffMember = await guild.members.fetch(entry.executor.id).catch(() => null);
-                if (staffMember) await isolateStaff(guild, staffMember, `Infiltration de bot non répertorié : (${member.user.tag})`);
-            } else if (!entry) {
-                await member.kick("Sécurité : Entrée de bot suspecte").catch(() => {});
+            if (logEntry && logEntry.executor.id !== OWNER_ID) {
+                await member.ban({ reason: "Bot non autorisé par l'admin principal" }).catch(() => {});
+                const badStaff = await server.members.fetch(logEntry.executor.id).catch(() => null);
+                if (badStaff) await removeStaffPermissions(server, badStaff, `Ajout d'un bot suspect : (${member.user.tag})`);
+            } else if (!logEntry) {
+                await member.kick("Bot suspect sans log d'invitation").catch(() => {});
             }
             return;
         }
 
-        // Isolement automatique des comptes récents
-        const accountAge = now - member.user.createdTimestamp;
-        if (accountAge < ACCOUNT_AGE_LIMIT || FLUX_RAID_ALERT_ACTIVE || backupDatabase.bunkerActive) {
-            const suspectRole = guild.roles.cache.get(SUSPECT_ROLE_ID);
-            if (suspectRole) await member.roles.add(suspectRole).catch(() => {});
+        const age = timeNow - member.user.createdTimestamp;
+        if (age < MIN_AGE_ACCOUNT || raidAlertOn || db.bunkerActive) {
+            const role = server.roles.cache.get(SUSPECT_ROLE);
+            if (role) await member.roles.add(role).catch(() => {});
 
-            let activeReason = "Compte trop récent (<24h)";
-            if (backupDatabase.bunkerActive) activeReason = "Mode Bunker Actif (Quarantaine)";
-            else if (FLUX_RAID_ALERT_ACTIVE) activeReason = "Protection de Flux Actif (Alerte Raid)";
+            let lockReason = "Compte créé il y que quelques heures (<24h)";
+            if (db.bunkerActive) lockReason = "Mode Bunker actuellement en cours";
+            else if (raidAlertOn) lockReason = "Alerte Anti-Raid activée";
 
             const suspectEmbed = new EmbedBuilder()
-                .setColor("#e67e22") // Orange Hexa stable 🟠
-                .setTitle("🔍 ISOLEMENT AUTOMATIQUE D'UN NOUVEAU MEMBRE")
-                .setDescription(`**Membre :** ${member.user} (\`${member.id}\`)\n**Raison :** ${activeReason}`)
+                .setColor("#ef6c00")
+                .setTitle("🔍 SÉCURISATION NOUVEAU MEMBRE")
+                .setDescription(`**Membre :** ${member.user} (\`${member.id}\`)\n**Raison :** ${lockReason}`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }));
             sendLog(CHANNELS.ANTI_RAID, suspectEmbed);
         }
     });
 
-    // =====================================================
-    // 👑 CONTRE-SABOTAGE DES PRIVILÈGES (RÔLES)
-    // =====================================================
+    // Protection des Rôles
     client.on("roleDelete", async (role) => {
-        const guild = role.guild;
-        const auditLogs = await guild.fetchAuditLogs({ limit: 1, type: 32 }).catch(() => null);
-        const entry = auditLogs?.entries.first();
-        if (!entry) return;
+        const server = role.guild;
+        const logs = await server.fetchAuditLogs({ limit: 1, type: 32 }).catch(() => null);
+        const logEntry = logs?.entries.first();
+        if (!logEntry) return;
 
-        const executor = entry.executor;
+        const user = logEntry.executor;
 
-        backupDatabase.roles[role.id] = {
+        db.roles[role.id] = {
             name: role.name,
             color: role.color,
             hoist: role.hoist,
             permissions: role.permissions.bitfield.toString(),
             mentionable: role.mentionable
         };
-        saveDatabase();
+        saveDb();
 
         const logEmbed = new EmbedBuilder()
-            .setColor("#e74c3c") // Rouge Hexa stable 🔴
-            .setTitle("🗑️ Rôle Supprimé")
-            .setDescription(`**Rôle :** \`@${role.name}\`\n**Auteur :** <@${executor.id}>`);
+            .setColor("#c62828")
+            .setTitle("🗑️ Rôle supprimé")
+            .setDescription(`**Rôle :** \`@${role.name}\`\n**Par :** <@${user.id}>`);
         sendLog(CHANNELS.LOGS_ROLES, logEmbed);
 
-        await checkHeuristicLimit(guild, executor.id, 5, "Suppression de rôle");
+        await verifyStaffActivity(server, user.id, 5, "Suppression Rôle");
     });
 
-    client.on("roleUpdate", async (oldRole, newRole) => {
-        const guild = newRole.guild;
-        const auditLogs = await guild.fetchAuditLogs({ limit: 1, type: 31 }).catch(() => null);
-        const entry = auditLogs?.entries.first();
-        if (!entry) return;
+    client.on("roleUpdate", async (oldR, newR) => {
+        const server = newR.guild;
+        const logs = await server.fetchAuditLogs({ limit: 1, type: 31 }).catch(() => null);
+        const logEntry = logs?.entries.first();
+        if (!logEntry) return;
 
-        const executor = entry.executor;
-        if (executor.id === WHITELIST_CEO_ID) return;
+        const user = logEntry.executor;
+        if (user.id === OWNER_ID) return;
 
-        const hadAdmin = oldRole.permissions.has(PermissionsBitField.Flags.Administrator);
-        const hasAdmin = newRole.permissions.has(PermissionsBitField.Flags.Administrator);
+        const oldAdmin = oldR.permissions.has(PermissionsBitField.Flags.Administrator);
+        const newAdmin = newR.permissions.has(PermissionsBitField.Flags.Administrator);
 
-        // Blocage d'élévation illégale de privilèges
-        if (!hadAdmin && hasAdmin) {
-            await newRole.setPermissions(oldRole.permissions.bitfield, "Anti-Nuke : Élévation interdite").catch(() => {});
-            const staffMember = await guild.members.fetch(executor.id).catch(() => null);
-            if (staffMember) await isolateStaff(guild, staffMember, `Tentative d'octroi de droits Administrateur sur le rôle @${newRole.name}`);
+        if (!oldAdmin && newAdmin) {
+            await newR.setPermissions(oldR.permissions.bitfield, "Anti-Nuke: Ajout Admin bloqué").catch(() => {});
+            const badStaff = await server.members.fetch(user.id).catch(() => null);
+            if (badStaff) await removeStaffPermissions(server, badStaff, `Tentative d'ajout de la permission Administrateur sur le rôle @${newR.name}`);
         }
     });
 
-    // =====================================================
-    // 🎛️ RESTAURATION MIROIR DEPUIS LA BASE DE DONNÉES LOCALE
-    // =====================================================
+    // Interactions Boutons (Restauration)
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
         
         if (interaction.customId === "nuke_clear_flux") {
-            if (interaction.user.id !== WHITELIST_CEO_ID) return;
-            FLUX_RAID_ALERT_ACTIVE = false;
-            // Remplacement d'ephemeral par flags pour effacer le warning
-            return interaction.reply({ content: "🔓 Alerte de flux réinitialisée.", flags: [MessageFlags.Ephemeral] });
+            if (interaction.user.id !== OWNER_ID) return;
+            raidAlertOn = false;
+            return interaction.reply({ content: "L'alerte de flux a été reset.", flags: [MessageFlags.Ephemeral] });
         }
 
         if (interaction.customId !== "nuke_restore_all") return;
-        if (interaction.user.id !== WHITELIST_CEO_ID) {
-            // Remplacement d'ephemeral par flags
-            return interaction.reply({ content: "❌ Autorisation refusée.", flags: [MessageFlags.Ephemeral] });
+        if (interaction.user.id !== OWNER_ID) {
+            return interaction.reply({ content: "Refusé.", flags: [MessageFlags.Ephemeral] });
         }
 
         await interaction.deferUpdate();
-        const guild = interaction.guild;
+        const server = interaction.guild;
 
-        // Reconstruction asynchrone ordonnée des salons sauvegardés
-        for (const [id, ch] of Object.entries(backupDatabase.channels)) {
-            await guild.channels.create({
+        for (const [id, ch] of Object.entries(db.channels)) {
+            await server.channels.create({
                 name: ch.name,
                 type: ch.type,
                 parent: ch.parentId,
                 position: ch.position,
-                permissionOverwrites: ch.permissionOverwrites.map(o => ({ id: o.id, type: o.type, allow: BigInt(o.allow), deny: BigInt(o.deny) }))
+                permissionOverwrites: ch.permissionOverwrites.map(o => ({ id: o.id, type: o.type, allow: o.allow, deny: o.deny }))
             }).catch(() => {});
         }
-        backupDatabase.channels = {};
+        db.channels = {};
 
-        // Reconstruction des rôles sauvegardés
-        for (const [id, rl] of Object.entries(backupDatabase.roles)) {
-            await guild.roles.create({
+        for (const [id, rl] of Object.entries(db.roles)) {
+            await server.roles.create({
                 name: rl.name,
                 color: rl.color,
                 hoist: rl.hoist,
@@ -463,13 +422,13 @@ module.exports = (client) => {
                 mentionable: rl.mentionable
             }).catch(() => {});
         }
-        backupDatabase.roles = {};
-        saveDatabase();
+        db.roles = {};
+        saveDb();
 
-        const successEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-            .setColor("#2ecc71") // Vert Hexa stable 🟢
-            .setTitle("✅ PROTOCOLE DE RESTAURATION AEROZ EXÉCUTÉ")
-            .setDescription("Les configurations et structures sauvegardées localement ont été injectées et restaurées avec succès.");
-        await interaction.editReply({ embeds: [successEmbed], components: [] }).catch(() => {});
+        const cleanEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+            .setColor("#2e7d32")
+            .setTitle("✅ RESTAURATION TERMINÉE")
+            .setDescription("La structure des salons et des rôles enregistrée en DB locale a été reconstruite.");
+        await interaction.editReply({ embeds: [cleanEmbed], components: [] }).catch(() => {});
     });
 };
