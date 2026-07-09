@@ -50,7 +50,7 @@ module.exports = async (client) => {
         const panelEmbed = new EmbedBuilder()
             .setColor("#ffb347")
             .setTitle("🎫 Aeroz Esports — Centre de Support")
-            .setDescription("Sélectionnez la catégorie adaptée à votre demande pour ouvrir un accès privé :\n\n🛡️ **Staff** (Recrutement Modération)\n🎮 **Joueur (PR & Rôles Compétitifs)**\n🎬 **Audiovisuel** (Design, Vidéo, Mapping)\n🆘 **Assistance / Aide**\n🤝 **Partenariat / Projets**")
+            .setDescription("Sélectionnez la catégorie adaptée à votre demande pour ouvrir un accès privé :\n\n🛡️ **Recrutement Staff**\n🎮 **Recrutement Joueur**\n🎬 **Recrutement Audiovisuel**\n🆘 **Assistance Générale**\n🤝 **Demande de Partenariat**")
             .setFooter({ text: "Aeroz Automations • Cliquez ci-dessous" });
 
         const menuSelection = new StringSelectMenuBuilder()
@@ -58,10 +58,10 @@ module.exports = async (client) => {
             .setPlaceholder("Sélectionnez votre catégorie...")
             .addOptions([
                 { label: "Recrutement Staff", value: "staff", emoji: "🛡️" },
-                { label: "Pôle Joueur & Rôles", value: "joueur", emoji: "🎮" },
-                { label: "Pôle Audiovisuel", value: "audiovisuel", emoji: "🎬" },
+                { label: "Recrutement Joueur", value: "joueur", emoji: "🎮" },
+                { label: "Recrutement Audiovisuel", value: "audiovisuel", emoji: "🎬" },
                 { label: "Assistance Générale", value: "aide", emoji: "🆘" },
-                { label: "Partenariats", value: "partenariat", emoji: "🤝" }
+                { label: "Demande de Partenariat", value: "partenariat", emoji: "🤝" }
             ]);
 
         await panelChannel.send({
@@ -166,11 +166,16 @@ module.exports = async (client) => {
 
         // --- A. TICKET GENERATION GATEWAY (MANUAL CONTEXT ONLY) ---
         if (i.isStringSelectMenu() && i.customId === "ticket_select") {
+            // SÉCURITÉ DOUBLE CRÉATION TICKET
+            if (i.replied || i.deferred) return;
+
             const type = i.values[0];
             if (db.blacklist.includes(i.user.id)) return i.reply({ content: "❌ Vous êtes banni du système de support.", ephemeral: true });
 
             const hasActiveTicket = Object.values(db.tickets).some(t => t.userId === i.user.id && t.status === "open");
             if (hasActiveTicket) return i.reply({ content: "⏳ Vous possédez déjà un ticket ouvert.", ephemeral: true });
+
+            await i.deferReply({ ephemeral: true });
 
             const categoryId = config.CATEGORIES[type];
             const basePermissions = [
@@ -205,23 +210,178 @@ module.exports = async (client) => {
                 new ButtonBuilder().setCustomId("ticket_create_voice").setLabel("Salon Vocal").setStyle(ButtonStyle.Success).setEmoji("🔊")
             );
 
-            let mainEmbed = new EmbedBuilder().setColor("#ffb347").setTitle(`🎫 Espace de Support — Pôle ${type.toUpperCase()}`);
-            const infoEmbed = new EmbedBuilder().setColor("#2f3136").setDescription(`👤 **Demandeur :** ${i.user} (\`${i.user.id}\`)\n📋 **Catégorie :** ${type.toUpperCase()}`);
+            // PRÉPARATION DE L'EMBED DU FORMULAIRE COMPLET ET STYLISÉ
+            let formEmbed = new EmbedBuilder().setTimestamp();
 
             if (type === "joueur") {
-                mainEmbed.setDescription(`Bienvenue dans l'espace **Joueurs & Rôles** de Aeroz Esports ${i.user}.\n\nUn responsable de la structure va vous prendre en charge manuellement. En attendant, veuillez expliquer en détail votre parcours et vos statistiques.`);
+                formEmbed.setColor("#3498db")
+                    .setTitle("🎮・Recrutement Joueur Fortnite")
+                    .setDescription("> Merci de répondre à toutes les questions avec sérieux. Chaque candidature est étudiée par notre staff.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "👤 **Informations générales**\n" +
+                        "・Pseudo Epic Games :\n" +
+                        "・Âge :\n" +
+                        "・Pays :\n" +
+                        "・Plateforme (PC / PS5 / Xbox / Switch / Mobile) :\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🏆 **Parcours compétitif**\n" +
+                        "・Power Ranking (PR) :\n" +
+                        "・As-tu déjà fait partie d'une structure ? Si oui, laquelle ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🎯 **Motivation**\n" +
+                        "・Quelles sont tes ambitions sur Fortnite ?\n" +
+                        "・Pourquoi souhaites-tu rejoindre notre structure ?\n" +
+                        "・Que peux-tu apporter à l'équipe ?\n" +
+                        "・Es-tu prêt à représenter la structure avec sérieux et professionnalisme ? (Oui / Non)\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📝 **Dernier mot**\n" +
+                        "・As-tu un dernier message à adresser au staff ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "✅ *Merci pour ta candidature ! Notre équipe examinera tes réponses sous peu.*");
             } 
             else if (type === "staff") {
-                mainEmbed.setDescription(`Bienvenue dans l'espace **Recrutement Staff** de Aeroz Esports ${i.user}.\n\nNotre équipe administrative se tient à votre entière disposition. Veuillez formuler votre demande ou poster vos motivations ci-dessous.`);
+                formEmbed.setColor("#e74c3c")
+                    .setTitle("🛡️・Recrutement Staff")
+                    .setDescription("> Merci de répondre à chaque question avec sérieux. Les réponses incomplètes pourront entraîner un refus.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "👤 **Informations générales**\n" +
+                        "・Pseudo Discord :\n" +
+                        "・Âge :\n" +
+                        "・Pays :\n" +
+                        "・Depuis combien de temps utilises-tu Discord ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📋 **Expérience**\n" +
+                        "・As-tu déjà été membre du staff d'un serveur ? (Oui / Non)\n" +
+                        "・Si oui, quel(s) poste(s) as-tu occupé ?\n" +
+                        "・Pourquoi as-tu quitté ton ou tes anciens serveurs ?\n" +
+                        "・Quelle est ton expérience en modération Discord ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🎯 **Motivation**\n" +
+                        "・Pourquoi souhaites-tu rejoindre notre staff ?\n" +
+                        "・Pourquoi devrions-nous te choisir ?\n" +
+                        "・Que peux-tu apporter à la structure ?\n" +
+                        "・Es-tu prêt à t'investir sur le long terme ? Pourquoi ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🛡️ **Connaissances & Sécurité**\n" +
+                        "・Que ferais-tu en cas de raid sur le serveur ?\n" +
+                        "・Comment réagirais-tu face à un spam massif ?\n" +
+                        "・Que ferais-tu si un membre diffusait du contenu pornographique, gore ou illégal ?\n" +
+                        "・Que ferais-tu si un membre contournait une sanction avec un autre compte ?\n" +
+                        "・Que ferais-tu si un membre du staff abusait de ses permissions ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🧠 **Mises en situation** (Réponds en détail) :\n" +
+                        "**1️⃣** Un raid de plusieurs dizaines de comptes commence à spammer.\n" +
+                        "**2️⃣** Un membre publie plusieurs images pornographiques dans différents salons.\n" +
+                        "**3️⃣** Tu surprends un autre staff qui favorise ses amis.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "⭐ **Engagement**\n" +
+                        "・Es-tu capable de rester calme sous pression ?\n" +
+                        "・Es-tu prêt à respecter les décisions de la direction ? (Oui / Non)\n" +
+                        "・Es-tu prêt à appliquer le règlement, même à un ami ? (Oui / Non)\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📝 **Dernier mot**\n" +
+                        "・As-tu un dernier message à adresser à la direction ?");
             } 
             else if (type === "audiovisuel") {
-                mainEmbed.setDescription(`Bienvenue dans l'espace **Pôle Audiovisuel** de Aeroz Esports ${i.user}.\n\nQue vous soyez Graphiste, Monteur Vidéo ou Mapper, un responsable se connectera rapidement. Préparez vos books/portfolios et déposez-les ici.`);
-            } else {
-                mainEmbed.setDescription(`Bonjour ${i.user}, un responsable de la structure va vous prendre en charge manuellement. Veuillez expliquer l'objet de votre demande ci-dessous.`);
+                formEmbed.setColor("#9b59b6")
+                    .setTitle("🎨・Recrutement Audiovisuel")
+                    .setDescription("> Merci de répondre à chaque question avec sérieux. Toutes les candidatures sont étudiées.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "👤 **Informations générales**\n" +
+                        "・Pseudo Discord :\n" +
+                        "・Âge :\n" +
+                        "・Pays :\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🎬 **Spécialité**\n" +
+                        "・Pour quel(s) poste(s) candidatures-tu ? (Graphiste, Monteur, Caster, Content Creator, Mapper) :\n" +
+                        "・Depuis combien de temps pratiques-tu cette spécialité ?\n" +
+                        "・Quel est ton niveau selon toi ? (Débutant / Intermédiaire / Avancé / Expert) :\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📂 **Expérience**\n" +
+                        "・As-tu déjà travaillé pour une structure ou un projet ? Si oui, lequel ?\n" +
+                        "・Décris rapidement ton expérience.\n" +
+                        "・Peux-tu nous montrer quelques-unes de tes réalisations ? (Portfolio, chaîne, Behance, Drive, etc.) :\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🛠️ **Compétences**\n" +
+                        "・Quels logiciels maîtrises-tu ?\n" +
+                        "・Quelles sont tes principales qualités dans ton domaine ?\n" +
+                        "・Quel est ton plus gros point faible ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🎯 **Motivation**\n" +
+                        "・Pourquoi souhaites-tu rejoindre notre structure ?\n" +
+                        "・Que peux-tu apporter à notre équipe ?\n" +
+                        "・Quels sont tes objectifs en nous rejoignant ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "⭐ **Engagement**\n" +
+                        "・Combien de temps peux-tu consacrer au projet chaque semaine ?\n" +
+                        "・Es-tu capable de respecter des délais ? (Oui / Non)\n" +
+                        "・Acceptes-tu les retours et les demandes de modifications ? (Oui / Non)\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📝 **Dernier mot**\n" +
+                        "・As-tu un dernier message à adresser à la direction ?");
+            } 
+            else if (type === "aide") {
+                formEmbed.setColor("#f1c40f")
+                    .setTitle("📩・Assistance Générale")
+                    .setDescription("> Remplis ce formulaire afin que notre équipe puisse t'aider le plus rapidement possible.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "👤 **Informations**\n" +
+                        "・Pseudo Discord :\n" +
+                        "・Concerné par un autre membre ? Si oui, lequel ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📋 **Votre demande**\n" +
+                        "・Quelle est la nature de votre problème ?\n" +
+                        "・Depuis quand ce problème est-il présent ?\n" +
+                        "・Décrivez précisément la situation.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📎 **Preuves**\n" +
+                        "・Disposez-vous de captures d'écran, vidéos ou autres preuves ? (Oui / Non) :\n" +
+                        "・*Si oui, merci de les joindre directement dans ce ticket.*\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🛠️ **Informations complémentaires**\n" +
+                        "・Avez-vous déjà essayé de résoudre le problème ? Si oui, comment ?\n" +
+                        "・Y a-t-il des informations importantes que le staff doit connaître ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📝 **Dernier mot**\n" +
+                        "・Souhaitez-vous ajouter quelque chose avant la prise en charge ?");
+            } 
+            else if (type === "partenariat") {
+                formEmbed.setColor("#2ecc71")
+                    .setTitle("🤝・Demande de Partenariat")
+                    .setDescription("> Merci de compléter ce formulaire avec sérieux. Toute demande incomplète pourra être refusée.\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🏷️ **Informations**\n" +
+                        "・Nom du serveur / de la structure :\n" +
+                        "・Lien d'invitation Discord :\n" +
+                        "・Nombre de membres :\n" +
+                        "・Date de création du serveur :\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📈 **Présentation**\n" +
+                        "・Présentez rapidement votre projet.\n" +
+                        "・Quels sont les principaux thèmes de votre serveur ?\n" +
+                        "・Pourquoi souhaitez-vous établir un partenariat avec nous ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "🤝 **Le partenariat**\n" +
+                        "• Quel type de partenariat recherchez-vous ? (Échange de pub, événement commun, sponsor...) :\n" +
+                        "・Que pouvez-vous apporter à notre structure ?\n" +
+                        "・Que souhaitez-vous obtenir en retour ?\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📜 **Engagement**\n" +
+                        "・Acceptez-vous de respecter les conditions de notre partenariat ? (Oui / Non)\n" +
+                        "・Votre serveur respecte-t-il les Conditions d'utilisation de Discord ? (Oui / Non)\n\n" +
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                        "📝 **Dernier mot**\n" +
+                        "・Avez-vous un dernier message à adresser à notre équipe ?");
             }
 
-            await ticketChannel.send({ content: `<@${i.user.id}>`, embeds: [mainEmbed, infoEmbed], components: [actionButtons, utilityButtons] });
-            return i.reply({ content: `✅ Votre salon privé a été initialisé : ${ticketChannel}`, ephemeral: true });
+            // ENVOI DU TICKET AVEC LE PING @here ET LE FORMULAIRE À REMPLIR
+            await ticketChannel.send({ 
+                content: `👋 Bonjour ${i.user} | 🔔 @here un nouveau dossier vient d'être ouvert !`, 
+                embeds: [formEmbed], 
+                components: [actionButtons, utilityButtons] 
+            });
+
+            return i.editReply({ content: `✅ Votre salon privé a été initialisé : ${ticketChannel}` });
         }
 
         // --- B. SECURED MODERATION UTILITIES ---
@@ -363,7 +523,7 @@ async function generateSystemClose(channel, client, context, staffUser) {
         const logChan = await client.channels.fetch(LOGS_CHANNEL).catch(() => null);
         if (logChan) await logChan.send({ embeds: [summaryEmbed] });
 
-        // 3. Envoi du questionnaire d'évaluation en DM au membre (S'il est noté dans l'historique)
+        // 3. Envoi du questionnaire d'évaluation en DM au membre
         if (context && context.userId) {
             const targetMember = await channel.guild.members.fetch(context.userId).catch(() => null);
             if (targetMember) {
