@@ -1,0 +1,13 @@
+{
+  "channels": {},
+  "roles": {},
+  "bunkerActive": false,
+  "antiBot": true,
+  "antiWebhook": true,
+  "whitelist": [],
+  "limits": {
+    "channel": 3,
+    "role": 3,
+    "ban": 4
+  }
+}
