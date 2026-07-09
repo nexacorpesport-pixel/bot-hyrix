@@ -1,10 +1,9 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // --- CONFIGURATION AEROZ ESPORTS ---
-const REGLEMENT_CHANNEL_ID = "1501626010049712180";
+const REGLEMENT_CHANNEL_ID = "1524748976639971338"; // Remplace ici par l'ID de ton nouveau salon
 const ROLES_A_DONNER = ["1501625972896825434", "1501920728302223381"]; 
 
-// On exporte une fonction que ton index.js va appeler en lui passant le "client"
 module.exports = (client) => {
 
     client.on('ready', async () => {
@@ -14,15 +13,16 @@ module.exports = (client) => {
             const channel = await client.channels.fetch(REGLEMENT_CHANNEL_ID);
             if (!channel) return console.error("❌ Salon règlement introuvable.");
 
+            // ÉTAPE SÉCURITÉ MAX : On vérifie si le bot a déjà posté le règlement ici
             const messages = await channel.messages.fetch({ limit: 50 });
             const botMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
             if (botMessage) {
-                console.log("✅ Le règlement est déjà en place dans le salon. Aucune action requise.");
+                console.log("✅ Le règlement est déjà présent dans ce nouveau salon. Pas besoin de le renvoyer.");
                 return;
             }
 
-            console.log("⏳ Règlement introuvable... Génération automatique des Embeds Aeroz Esports...");
+            console.log("⏳ Nouveau salon détecté vide... Envoi du règlement officiel Aeroz Esports...");
 
             const embed1 = new EmbedBuilder()
                 .setColor('#00ffcc')
@@ -92,7 +92,7 @@ module.exports = (client) => {
             );
 
             await channel.send({ embeds: [embed1, embed2, embed3], components: [row] });
-            console.log("✅ Règlement envoyé avec succès !");
+            console.log("✅ Règlement configuré en sécurité max avec succès !");
 
         } catch (error) {
             console.error("❌ Erreur lors de l'initialisation du règlement :", error);
@@ -123,11 +123,10 @@ module.exports = (client) => {
                 console.error("❌ Impossible d'attribuer les rôles :", error);
                 return interaction.reply({ 
                     content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Merci de contacter un administrateur.", 
-                    exact: true,
                     ephemeral: true 
                 });
             }
         }
     });
 
-}; // Ne pas oublier de fermer l'accolade du module.exports tout à la fin
+};
