@@ -14,7 +14,6 @@ const ROLE_DISPO = "1522242965823684609";
 const ROLE_INDISPO = "1522243018453684266";
 const AVIS_CHANNEL_ID = "1522244053196865729";
 
-// Chargement initial des configurations
 let config = {};
 if (fs.existsSync(CONFIG_PATH)) {
     config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -23,43 +22,49 @@ if (fs.existsSync(CONFIG_PATH)) {
 if (!fs.existsSync(DATA_PATH)) {
     fs.writeFileSync(DATA_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [], history: [], coachStats: {} }, null, 2));
 }
+
 let coachingData = JSON.parse(fs.readFileSync(DATA_PATH, "utf-8"));
 if (!coachingData.history) coachingData.history = [];
-
-// CORRECTION CRITIQUE : Toujours forcer un objet {} pour éviter de casser Object.entries()
 if (!coachingData.coachStats || Array.isArray(coachingData.coachStats)) {
     coachingData.coachStats = {};
 }
 
 const cooldowns = new Map();
 
-// --- GESTION DE LA SAUVEGARDE ET DES QUOTAS ---
+// Sauvegarde des données globales
 function saveCoachingData() {
     fs.writeFileSync(DATA_PATH, JSON.stringify(coachingData, null, 2));
 }
 
-function checkQuota(userId) {
+// Gestion simplifiée des fichiers de quotas
+function getQuotas() {
     if (!fs.existsSync(QUOTA_PATH)) fs.writeFileSync(QUOTA_PATH, JSON.stringify({}));
-    const quotas = JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
-    const currentMonth = new Date().getMonth() + "-" + new Date().getFullYear();
+    return JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
+}
+
+function saveQuotas(quotas) {
+    fs.writeFileSync(QUOTA_PATH, JSON.stringify(quotas, null, 2));
+}
+
+function checkQuota(userId) {
+    const quotas = getQuotas();
+    const currentMonth = `${new Date().getMonth()}-${new Date().getFullYear()}`;
     return quotas[userId] !== currentMonth;
 }
 
 function setQuota(userId) {
-    if (!fs.existsSync(QUOTA_PATH)) fs.writeFileSync(QUOTA_PATH, JSON.stringify({}));
-    const quotas = JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
-    quotas[userId] = new Date().getMonth() + "-" + new Date().getFullYear();
-    fs.writeFileSync(QUOTA_PATH, JSON.stringify(quotas, null, 2));
+    const quotas = getQuotas();
+    quotas[userId] = `${new Date().getMonth()}-${new Date().getFullYear()}`;
+    saveQuotas(quotas);
 }
 
 function resetQuota(userId) {
-    if (!fs.existsSync(QUOTA_PATH)) fs.writeFileSync(QUOTA_PATH, JSON.stringify({}));
-    const quotas = JSON.parse(fs.readFileSync(QUOTA_PATH, "utf-8"));
+    const quotas = getQuotas();
     delete quotas[userId];
-    fs.writeFileSync(QUOTA_PATH, JSON.stringify(quotas, null, 2));
+    saveQuotas(quotas);
 }
 
-// --- ACTUALISATION DU DASHBOARD DYNAMIQUE ---
+// Mise à jour du tableau de bord
 async function updateDashboard(client) {
     const channel = client.channels.cache.get(config.PLANNING_CHANNEL);
     if (!channel) return;
@@ -68,7 +73,7 @@ async function updateDashboard(client) {
         .setTitle("📅 TABLEAU DE BORD DES COACHINGS ─ AEROZ ESPORTS")
         .setColor("#ff007f")
         .setTimestamp()
-        .setFooter({ text: "Système automatique d'élite • Aeroz Esports" });
+        .setFooter({ text: "Système de suivi • Aeroz Esports" });
 
     let description = "### 📋 Liste des séances planifiées\n\n";
 
@@ -87,17 +92,16 @@ async function updateDashboard(client) {
         });
     }
 
-    // Statistiques des coachs
     if (coachingData.coachStats && Object.keys(coachingData.coachStats).length > 0) {
-        description += "\n---\n### 📊 Performance du Staff (Coachs)\n";
+        description += "\n---\n### 📊 Performance des Coachs\n";
         for (const [coachId, stat] of Object.entries(coachingData.coachStats)) {
             const avgRating = stat.totalRatings > 0 ? (stat.ratingSum / stat.totalRatings).toFixed(1) : "N/A";
-            description += `• <@${coachId}> ➔ **${stat.count}** séances terminées | ⭐ **${avgRating}/5**\n`;
+            description += `• <@${coachId}> ➔ **${stat.count}** séances | ⭐ **${avgRating}/5**\n`;
         }
     }
 
     if (coachingData.history && coachingData.history.length > 0) {
-        description += "\n---\n### ✅ Dernières sessions terminées (Historique)\n";
+        description += "\n---\n### ✅ Dernières sessions terminées\n";
         coachingData.history.slice(-5).reverse().forEach(h => {
             description += `• <@${h.userId}> par <@${h.coachId}> ➔ *${h.game}*\n`;
         });
@@ -116,25 +120,22 @@ async function updateDashboard(client) {
     try {
         if (coachingData.dashboardMessageId) {
             const msg = await channel.messages.fetch(coachingData.dashboardMessageId).catch(() => null);
-            if (msg) {
-                return await msg.edit({ embeds: [embed], components: [row] });
-            }
+            if (msg) return await msg.edit({ embeds: [embed], components: [row] });
         }
         const newMsg = await channel.send({ embeds: [embed], components: [row] });
         coachingData.dashboardMessageId = newMsg.id;
         saveCoachingData();
     } catch (e) { 
-        console.error("Erreur lors de la mise à jour du Dashboard :", e); 
+        console.error("Erreur mise à jour dashboard :", e); 
     }
 }
 
-// --- DÉTECTION VOCALE AUTOMATIQUE ---
+// Vérification de la présence en vocal
 function startVoiceChecker(client) {
     setInterval(async () => {
         if (!coachingData.sessions || coachingData.sessions.length === 0) return;
         let change = false;
 
-        // CORRECTION : Récupération sécurisée du serveur via le salon configuré
         const targetChannel = client.channels.cache.get(config.PLANNING_CHANNEL);
         const guild = targetChannel?.guild;
         if (!guild) return;
@@ -145,13 +146,11 @@ function startVoiceChecker(client) {
             const coachMember = await guild.members.fetch(session.coachId).catch(() => null);
             const userMember = await guild.members.fetch(session.userId).catch(() => null);
 
-            if (coachMember && userMember && coachMember.voice.channelId && userMember.voice.channelId) {
-                const v1 = config.VOICE_COACHING_1;
-                const v2 = config.VOICE_COACHING_2;
+            if (coachMember?.voice.channelId && userMember?.voice.channelId) {
                 const cId = coachMember.voice.channelId;
                 const uId = userMember.voice.channelId;
 
-                if (cId === uId && (cId === v1 || cId === v2)) {
+                if (cId === uId && (cId === config.VOICE_COACHING_1 || cId === config.VOICE_COACHING_2)) {
                     session.status = "EN COURS";
                     change = true;
                 }
@@ -166,9 +165,10 @@ function startVoiceChecker(client) {
 }
 
 module.exports = async (client) => {
-    console.log("[🎯 COACHING] Module Élite Initialisé avec succès pour Aeroz Esports !");
+    console.log("[Coaching] Module de suivi de performance initialisé.");
     startVoiceChecker(client);
 
+    // Commande de setup
     client.on("messageCreate", async (message) => {
         if (message.author.bot || !message.member.permissions.has("Administrator")) return;
 
@@ -194,8 +194,10 @@ module.exports = async (client) => {
         }
     });
 
+    // Gestion de toutes les interactions du système
     client.on("interactionCreate", async (interaction) => {
         try {
+            // Bouton de demande initiale
             if (interaction.isButton() && interaction.customId === "start_apply") {
                 if (!checkQuota(interaction.user.id)) {
                     return interaction.reply({ content: "❌ Tu as déjà demandé ou effectué un coaching ce mois-ci.", flags: [MessageFlags.Ephemeral] });
@@ -219,6 +221,7 @@ module.exports = async (client) => {
                 });
             }
 
+            // Sélection du PR -> Envoi du formulaire modal
             if (interaction.isStringSelectMenu() && interaction.customId === "select_pr") {
                 const prValue = interaction.values[0];
                 const modal = new ModalBuilder().setCustomId(`modal_coaching_${prValue}`).setTitle("Fiche de Suivi Coaching");
@@ -233,6 +236,7 @@ module.exports = async (client) => {
                 await interaction.showModal(modal);
             }
 
+            // Réception de la fiche par l'administration
             if (interaction.isModalSubmit() && interaction.customId.startsWith("modal_coaching_")) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
                 const prValue = interaction.customId.split("_")[2];
@@ -268,13 +272,13 @@ module.exports = async (client) => {
                 await interaction.editReply({ content: "✅ Ta fiche de grinder a bien été transmise au pôle coaching !" });
             }
 
+            // Acceptation ou refus du staff
             if (interaction.isButton() && (interaction.customId.startsWith("accept_") || interaction.customId.startsWith("deny_"))) {
                 if (!interaction.member.permissions.has("ManageMessages")) return interaction.reply({ content: "❌ Permissions insuffisantes.", flags: [MessageFlags.Ephemeral] });
 
-                const action = interaction.customId.split("_")[0];
-                const userId = interaction.customId.split("_")[1];
+                const [, userId, rankInfo] = interaction.customId.split("_");
 
-                if (action === "deny") {
+                if (interaction.customId.startsWith("deny_")) {
                     resetQuota(userId);
                     const targetUser = await client.users.fetch(userId).catch(() => null);
                     if (targetUser) await targetUser.send("❌ Ta demande de coaching pour Aeroz Esports a été refusée.").catch(() => null);
@@ -282,18 +286,17 @@ module.exports = async (client) => {
                     return interaction.reply({ content: "Candidature refusée.", flags: [MessageFlags.Ephemeral] });
                 }
 
-                if (action === "accept") {
-                    const rankInfo = interaction.customId.split("_")[2] || "Coaching";
-                    const coachModal = new ModalBuilder().setCustomId(`final_plan_${userId}_${rankInfo}`).setTitle("Planification de la séance");
+                if (interaction.customId.startsWith("accept_")) {
+                    const coachModal = new ModalBuilder().setCustomId(`final_plan_${userId}_${rankInfo || "Coaching"}`).setTitle("Planification de la séance");
                     coachModal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_time").setLabel("Fixer le Jour et l'Heure exacte :").setStyle(TextInputStyle.Short).setRequired(true)));
                     await interaction.showModal(coachModal);
                 }
             }
 
+            // Planification finale et création du fil privé
             if (interaction.isModalSubmit() && interaction.customId.startsWith("final_plan_")) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-                const userId = interaction.customId.split("_")[2];
-                const rankInfo = interaction.customId.split("_")[3];
+                const [, , userId, rankInfo] = interaction.customId.split("_");
                 const time = interaction.fields.getTextInputValue("f_time");
 
                 const targetMember = await interaction.guild.members.fetch(userId).catch(() => null);
@@ -332,9 +335,9 @@ module.exports = async (client) => {
                 await interaction.editReply({ content: "✅ Séance ajoutée au planning !" });
             }
 
+            // Gestion des statuts de la session en cours
             if (interaction.isButton() && interaction.customId.startsWith("status_")) {
-                const action = interaction.customId.split("_")[1];
-                const userId = interaction.customId.split("_")[2];
+                const [, action, userId] = interaction.customId.split("_");
                 const session = coachingData.sessions.find(s => s.userId === userId);
 
                 if (!session) return interaction.reply({ content: "Séance introuvable.", flags: [MessageFlags.Ephemeral] });
@@ -372,6 +375,7 @@ module.exports = async (client) => {
                 }
             }
 
+            // Envoi du bilan écrit et demande de note
             if (interaction.isModalSubmit() && interaction.customId.startsWith("coach_summary_")) {
                 await interaction.deferReply();
                 const userId = interaction.customId.split("_")[2];
@@ -426,9 +430,9 @@ module.exports = async (client) => {
                 });
             }
 
+            // Choix de la note (Menu) -> Modal d'avis écrit
             if (interaction.isStringSelectMenu() && interaction.customId.startsWith("rate_")) {
-                const coachId = interaction.customId.split("_")[1];
-                const userId = interaction.customId.split("_")[2];
+                const [, coachId, userId] = interaction.customId.split("_");
                 const rating = parseInt(interaction.values[0]);
 
                 if (interaction.user.id !== userId) return interaction.reply({ content: "❌ Seul le joueur coché peut donner sa note !", flags: [MessageFlags.Ephemeral] });
@@ -438,10 +442,11 @@ module.exports = async (client) => {
                 await interaction.showModal(commentModal);
             }
 
+            // Publication de l'avis et destruction du salon
             if (interaction.isModalSubmit() && interaction.customId.startsWith("comment_")) {
                 await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-                const coachId = interaction.customId.split("_")[1];
-                const rating = parseInt(interaction.customId.split("_")[2]);
+                const [, coachId, ratingStr] = interaction.customId.split("_");
+                const rating = parseInt(ratingStr);
                 const comment = interaction.fields.getTextInputValue("r_comment");
 
                 if (coachingData.coachStats[coachId]) {
@@ -453,13 +458,12 @@ module.exports = async (client) => {
 
                 const avisChannel = client.channels.cache.get(AVIS_CHANNEL_ID);
                 if (avisChannel) {
-                    const stars = "⭐".repeat(rating);
                     const avisEmbed = new EmbedBuilder()
                         .setTitle("⭐ NOUVEL AVIS COACHING ─ AEROZ ESPORTS")
                         .addFields(
                             { name: "👤 Joueur", value: `<@${interaction.user.id}>`, inline: true },
                             { name: "🎓 Coach", value: `<@${coachId}>`, inline: true },
-                            { name: "📊 Note", value: `**${stars} (${rating}/5)**`, inline: true },
+                            { name: "📊 Note", value: `${"⭐".repeat(rating)} (${rating}/5)`, inline: true },
                             { name: "💬 Commentaire", value: comment, inline: false }
                         )
                         .setColor("#ff007f")
@@ -471,6 +475,7 @@ module.exports = async (client) => {
                 setTimeout(() => interaction.channel.delete().catch(() => null), 3000);
             }
 
+            // Gestion du report
             if (interaction.isModalSubmit() && interaction.customId.startsWith("update_time_")) {
                 const userId = interaction.customId.split("_")[2];
                 const newTime = interaction.fields.getTextInputValue("new_time");
@@ -485,16 +490,18 @@ module.exports = async (client) => {
                 }
             }
 
+            // Actualisation manuelle du Dashboard
             if (interaction.isButton() && interaction.customId === "refresh_dashboard") {
                 const lastClick = cooldowns.get(interaction.user.id);
                 if (lastClick && Date.now() - lastClick < 10000) return interaction.reply({ content: "⏳ Un cooldown de 10 secondes est actif.", flags: [MessageFlags.Ephemeral] });
+                
                 cooldowns.set(interaction.user.id, Date.now());
                 await updateDashboard(client);
                 await interaction.reply({ content: "✅ Mis à jour !", flags: [MessageFlags.Ephemeral] });
             }
 
         } catch (error) {
-            console.error("Erreur :", error);
+            console.error("Erreur d'interaction :", error);
         }
     });
 };
