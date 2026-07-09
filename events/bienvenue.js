@@ -1,41 +1,27 @@
-const {
-    EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle
-} = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
-// Cache pour stocker les invitations du serveur
 const invitesCache = new Map();
 
 module.exports = (client) => {
-    console.log("[👋 ONBOARDING] Module d'accueil épuré avec boutons de redirection opérationnel pour Aeroz Esports.");
+    console.log("[Onboarding] Système d'accueil et tracking d'invitations opérationnel.");
 
     const GUILD_ID = "1501625824028266676";
     
-    // ==========================================
-    // CONFIGURATION DES SALONS & COMPOSANTS
-    // ==========================================
     const CHANNELS = {
         WELCOME: "1501626008564928572",
         LOGS_MEMBRES: "1521930283094638722",
         LOGS_INVITES: "1502757854568779944"
     };
 
-    // Liens vers tes salons pour les boutons et les redirections
     const LINKS = {
         REGLEMENT: "https://discord.com/channels/1501625824028266676/1501626010049712180",
         PRESENTATION: "https://discord.com/channels/1501625824028266676/1501626026252304555",
         CRITERES: "https://discord.com/channels/1501625824028266676/1501626012822147162"
     };
 
-    // Couleur Blanche demandée
-    const COLOR_WHITE = "#FFFFFF";
-    
-    // URL de ton logo fourni
     const LOGO_URL = "https://media.discordapp.net/attachments/1456718862283444414/1464677828749561987/mwWWI6B.png?ex=6a47f586&is=6a46a406&hm=2c1bcf48d52289db59bc89a72f04586c541bea085a8dbc2f65ef0025e70c06d9&=&format=webp&quality=lossless&width=960&height=960";
 
-    // 1. CHARGEMENT INITIAL DES INVITATIONS AU DÉMARRAGE
+    // Mise en cache des invites au démarrage
     client.once("ready", async () => {
         const guild = client.guilds.cache.get(GUILD_ID);
         if (!guild) return;
@@ -46,7 +32,7 @@ module.exports = (client) => {
         }
     });
 
-    // 2. LOGS QUAND UNE INVITATION EST CRÉÉE
+    // Tracking à la création d'une invite
     client.on("inviteCreate", async (invite) => {
         if (invite.guild.id !== GUILD_ID) return;
         
@@ -55,7 +41,7 @@ module.exports = (client) => {
         invitesCache.set(invite.guild.id, guildInvites);
 
         const logInviteEmbed = new EmbedBuilder()
-            .setColor("#2ecc71") // Vert Hexa stable 🟢
+            .setColor("#2ecc71")
             .setTitle("➕ Invitation Créée")
             .setDescription(`**Code :** \`${invite.code}\`\n**Créateur :** ${invite.inviter ? invite.inviter.tag : "Inconnu"}\n**Salon :** ${invite.channel}`)
             .setTimestamp();
@@ -64,14 +50,13 @@ module.exports = (client) => {
         if (logChannel) logChannel.send({ embeds: [logInviteEmbed] }).catch(() => {});
     });
 
-    // 3. ARRIVÉE D'UN MEMBRE : ACCUEIL AUTOMATIQUE DANS LE SALON + TRACKING
+    // Gestion des arrivées
     client.on("guildMemberAdd", async (member) => {
         if (member.guild.id !== GUILD_ID) return;
 
         const guild = member.guild;
         const memberCount = guild.memberCount;
 
-        // Tracking de l'inviteur
         let inviterUser = null;
         let inviteUses = 0;
 
@@ -94,14 +79,14 @@ module.exports = (client) => {
             invitesCache.set(guild.id, new Map(newInvites.map(i => [i.code, i.uses])));
         }
 
-        // --- ENVOI DU MESSAGE D'ACCUEIL DANS LE CHANNEL DE BIENVENUE ---
+        // Message de bienvenue
         const welcomeChannel = await guild.channels.fetch(CHANNELS.WELCOME).catch(() => null);
         if (welcomeChannel) {
             const inviterText = inviterUser ? `${inviterUser.username}` : "Inconnu ou via Vanité";
             const scoreText = inviterUser ? `(Déjà ${inviteUses} invitations)` : "";
 
             const welcomeEmbed = new EmbedBuilder()
-                .setColor(COLOR_WHITE)
+                .setColor("#FFFFFF")
                 .setTitle(`🔥 BIENVENUE CHEZ AEROZ ESPORTS 🔥`)
                 .setDescription(
                     `Bienvenue ${member} ! Installe-toi confortablement.\n\n` +
@@ -116,7 +101,6 @@ module.exports = (client) => {
                 .setFooter({ text: `Aeroz Esports • Compteur : ${memberCount} membres`, iconURL: guild.iconURL({ dynamic: true }) })
                 .setTimestamp();
 
-            // Rangée de boutons
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("📜 Règlement").setURL(LINKS.REGLEMENT),
                 new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("🎭 Présentation").setURL(LINKS.PRESENTATION),
@@ -126,11 +110,11 @@ module.exports = (client) => {
             welcomeChannel.send({ content: `👋 Hé, salut ${member} !`, embeds: [welcomeEmbed], components: [row] }).catch(() => {});
         }
 
-        // --- ENVOI DU LOG MEMBRE (ARRIVÉE) ---
+        // Log de jointure
         const logMembreChannel = await client.channels.fetch(CHANNELS.LOGS_MEMBRES).catch(() => null);
         if (logMembreChannel) {
             const joinEmbed = new EmbedBuilder()
-                .setColor("#2ecc71") // Vert Hexa stable 🟢
+                .setColor("#2ecc71")
                 .setTitle("📥 Nouveau Membre")
                 .setDescription(`**Compte :** ${member.user.tag} (\`${member.id}\`)\n**Créé le :** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
@@ -138,12 +122,12 @@ module.exports = (client) => {
             logMembreChannel.send({ embeds: [joinEmbed] }).catch(() => {});
         }
 
-        // --- ENVOI DU LOG INVITATION ---
+        // Log du tracking d'invitation
         if (inviterUser) {
             const logInviteChannel = await client.channels.fetch(CHANNELS.LOGS_INVITES).catch(() => null);
             if (logInviteChannel) {
                 const infoInviteEmbed = new EmbedBuilder()
-                    .setColor("#ffc0cb") // Rose Hexa valide 🌸
+                    .setColor("#ffc0cb")
                     .setTitle("🎯 Tracking d'Invitation")
                     .setDescription(`**Joueur arrivé :** ${member.user.tag}\n**Inviteur :** ${inviterUser.tag} (\`${inviterUser.id}\`)\n**Score de l'inviteur :** \`${inviteUses}\` utilisations au total.`)
                     .setTimestamp();
@@ -152,14 +136,14 @@ module.exports = (client) => {
         }
     });
 
-    // 4. LOGS DE DÉPART (QUAND UN MEMBRE QUITTE)
+    // Gestion des départs
     client.on("guildMemberRemove", async (member) => {
         if (member.guild.id !== GUILD_ID) return;
 
         const logMembreChannel = await client.channels.fetch(CHANNELS.LOGS_MEMBRES).catch(() => null);
         if (logMembreChannel) {
             const leaveEmbed = new EmbedBuilder()
-                .setColor("#e74c3c") // Rouge Hexa stable 🔴
+                .setColor("#e74c3c")
                 .setTitle("📤 Départ d'un membre")
                 .setDescription(`**Compte :** ${member.user.tag} (\`${member.id}\`)\n\nLe serveur compte désormais **${member.guild.memberCount}** membres.`)
                 .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
