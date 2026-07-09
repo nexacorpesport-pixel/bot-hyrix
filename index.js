@@ -77,7 +77,7 @@ async function updateStatus() {
         let status;
 
         if (index === 0) {
-            status = { type: ActivityType.Streaming, name: "#AZRWIN", url: TWITCH_URL };
+            status = { type: ActivityType.Streaming, name: "#ARZWIN", url: TWITCH_URL };
         } else if (index === 1) {
             status = { type: ActivityType.Watching, name: `Surveille ${memberCount} membres` };
         } else {
