@@ -3,24 +3,39 @@ const fs = require("fs");
 const path = require("path");
 
 // =====================================================
-// PERSISTENT STORAGE ROUTING (Dossier data/)
+// PERSISTENT STORAGE ROUTING - CORRIGÉ POUR LES CHEMINS HÉBERGEURS
 // =====================================================
-const DB_PATH = path.join(__dirname, "data", "stats_database.json");
+const DATA_DIR = path.join(process.cwd(), "data");
+const DB_PATH = path.join(DATA_DIR, "stats_database.json");
 
-// Sécurité d'initialisation des fichiers
-if (!fs.existsSync(path.dirname(DB_PATH))) fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+// Sécurité d'initialisation des dossiers et fichiers
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({ users: {}, channels: {}, server: { totalMessages: 0, totalVoiceTime: 0 } }, null, 4));
+    fs.writeFileSync(DB_PATH, JSON.stringify({ users: {}, channels: {}, server: { totalMessages: 0, totalVoiceTime: 0 } }, null, 4), "utf-8");
 }
 
-function readDB() { return JSON.parse(fs.readFileSync(DB_PATH, "utf-8")); }
-function writeDB(data) { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 4), "utf-8"); }
+function readDB() { 
+    try {
+        return JSON.parse(fs.readFileSync(DB_PATH, "utf-8")); 
+    } catch (e) {
+        return { users: {}, channels: {}, server: { totalMessages: 0, totalVoiceTime: 0 } };
+    }
+}
+function writeDB(data) { 
+    try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 4), "utf-8"); 
+    } catch (e) {
+        console.log("❌ Erreur d'écriture DB Stats :", e);
+    }
+}
 
 // RAM Runtime Registry pour stocker l'heure de connexion des membres en vocal
 const voiceSessions = new Map();
 
 // Configuration du Staff
-const OWNER_ID = "1501625944148934758";
+const OWNER_ID = "1431661348218998948";
 const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"];
 
 module.exports = (client) => {
@@ -137,7 +152,6 @@ module.exports = (client) => {
 
         // 🌐 COMMANDE : +stats-server
         if (command === "stats-server") {
-            // Trouver le salon le plus actif du serveur
             let topChanId = "Aucun";
             let topChanMsgs = 0;
             for (const [cId, data] of Object.entries(db.channels)) {
@@ -237,9 +251,8 @@ module.exports = (client) => {
 
         const userId = newState.member.id;
 
-        // Cas 1 : L'utilisateur se connecte à un salon vocal (ou change de salon)
+        // Cas 1 : L'utilisateur se connecte à un salon vocal
         if (!oldState.channelId && newState.channelId) {
-            // On enregistre l'heure exacte de sa connexion en RAM
             voiceSessions.set(userId, Date.now());
         }
 
@@ -248,12 +261,11 @@ module.exports = (client) => {
             const joinTime = voiceSessions.get(userId);
             if (joinTime) {
                 const elapsed = Date.now() - joinTime;
-                voiceSessions.delete(userId); // On nettoie la RAM
+                voiceSessions.delete(userId);
 
                 const db = readDB();
                 if (!db.users[userId]) db.users[userId] = { messages: 0, voiceTime: 0, channels: {} };
                 
-                // Injection du temps passé
                 db.users[userId].voiceTime = (db.users[userId].voiceTime || 0) + elapsed;
                 db.server.totalVoiceTime += elapsed;
 
@@ -261,7 +273,7 @@ module.exports = (client) => {
             }
         }
 
-        // Cas 3 : Changement de salon sans se déconnecter (on calcule la session du premier salon et on relance pour le second)
+        // Cas 3 : Changement de salon
         if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
             const joinTime = voiceSessions.get(userId);
             if (joinTime) {
@@ -274,7 +286,6 @@ module.exports = (client) => {
                 db.server.totalVoiceTime += elapsed;
                 writeDB(db);
 
-                // On reset le chrono pour son nouveau salon vocal
                 voiceSessions.set(userId, Date.now());
             } else {
                 voiceSessions.set(userId, Date.now());
