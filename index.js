@@ -59,7 +59,7 @@ const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
 const tournamentSystem = require("./events/tournament");
 const effectifSystem = require("./events/effectif"); 
-const statsSystem = require("./events/stats"); // 📊 Ajout du système de statistiques
+const statsSystem = require("./events/stats_system"); // À la place de "./events/stats"
 
 const GUILD_ID = "1501625824028266676";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
