@@ -6,7 +6,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "fortress_security_db.json");
+const DB_PATH = path.join(__dirname, "data", "fortress_antispam_db.json");
 
 // Initialisation et chargement de la base de données sécurisée
 let db = { 
