@@ -55,7 +55,7 @@ module.exports = (client) => {
 
     console.log("[🛡️ AEROZ FORTRESS] Protocole de défense global activé.");
 
-    const OWNER_ID = "1501625944148934758";
+    const OWNER_ID = "1431661348218998948";
     const SUSPECT_ROLE = "1522353482252947508"; 
     
     const CHANNELS = {
