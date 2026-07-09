@@ -92,38 +92,52 @@ async function updateStatus() {
 }
 
 // =========================
-// READY EVENT
+// READY EVENT (MODE DIAGNOSTIC)
 // =========================
 client.once("ready", async () => {
-    console.log(`✅ Logged as ${client.user.tag}`);
+    console.log(`✅ Connecté en tant que ${client.user.tag}`);
     try {
-        // Chargement des modules existants
+        console.log("⏳ Chargement : Ticket...");
         ticketSystem(client);
+        
+        console.log("⏳ Chargement : VoiceTemp...");
         voiceTemp(client);
+        
+        console.log("⏳ Chargement : AntiSpam...");
         antiSpam(client);
+        
+        console.log("⏳ Chargement : Moderation...");
         moderation(client);
+        
+        console.log("⏳ Chargement : Logs...");
         logsSystem(client);
+        
+        console.log("⏳ Chargement : AntiNuke...");
         antiNuke(client); 
+        
+        console.log("⏳ Chargement : Bienvenue...");
         bienvenue(client);
+        
+        console.log("⏳ Chargement : Coaching...");
         coaching(client);
         
-        // 📋 Chargement du système d'effectif automatique
+        console.log("⏳ Chargement : Effectif...");
         effectifSystem(client);
 
-        // 🏆 Chargement du système de tournoi
+        console.log("⏳ Chargement : Tournament...");
         tournamentSystem(client);
 
-        // 📊 Chargement du système de statistiques (Écrit + Vocal)
+        console.log("⏳ Chargement : Stats...");
         statsSystem(client);
 
-        console.log("✅ Tous les systèmes Aeroz Esports chargés avec succès.");
+        console.log("✅ TOUS LES SYSTÈMES ONT ÉTÉ CHARGÉS AVEC SUCCÈS !");
 
         setTimeout(async () => {
             await updateStatus();
             await setInterval(updateStatus, 30000);
         }, 2000);
     } catch (err) {
-        console.log("❌ Erreur chargement systèmes :", err);
+        console.log("❌ CRASH PENDANT LE CHARGEMENT :", err);
     }
 });
 
