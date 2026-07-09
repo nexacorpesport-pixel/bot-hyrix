@@ -69,7 +69,7 @@ function getSimilarity(s1, s2) {
 module.exports = (client) => {
     console.log("[🛡️ AEROZ ANTISPAM V3] Module de protection textuelle actif.");
 
-    const OWNER_ID = "1501625944148934758";
+    const OWNER_ID = "1431661348218998948";
     const CEO_ROLE = "1501625944148934758"; 
     const LOGS_CHAN = "1522354627633217597";
 
