@@ -1,27 +1,24 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // --- CONFIGURATION AEROZ ESPORTS ---
-const REGLEMENT_CHANNEL_ID = "1524748976639971338"; // Remplace ici par l'ID de ton nouveau salon
+const REGLEMENT_CHANNEL_ID = "1524748976639971338"; 
 const ROLES_A_DONNER = ["1501625972896825434", "1501920728302223381"]; 
 
-module.exports = (client) => {
+module.exports = async (client) => {
+    // PLUS DE client.on('ready') ICI ! Vu que index.js appelle cette fonction au moment du ready,
+    // le code s'exécute directement et proprement.
 
-    client.on('ready', async () => {
-        console.log(`🤖 Bot connecté en tant que ${client.user.tag} !`);
+    try {
+        const channel = await client.channels.fetch(REGLEMENT_CHANNEL_ID);
+        if (!channel) return console.error("❌ Salon règlement introuvable.");
 
-        try {
-            const channel = await client.channels.fetch(REGLEMENT_CHANNEL_ID);
-            if (!channel) return console.error("❌ Salon règlement introuvable.");
+        // ÉTAPE SÉCURITÉ MAX : On vérifie si le bot a déjà posté le règlement ici
+        const messages = await channel.messages.fetch({ limit: 50 });
+        const botMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
-            // ÉTAPE SÉCURITÉ MAX : On vérifie si le bot a déjà posté le règlement ici
-            const messages = await channel.messages.fetch({ limit: 50 });
-            const botMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
-
-            if (botMessage) {
-                console.log("✅ Le règlement est déjà présent dans ce nouveau salon. Pas besoin de le renvoyer.");
-                return;
-            }
-
+        if (botMessage) {
+            console.log("✅ Le règlement est déjà présent dans ce nouveau salon. Pas besoin de le renvoyer.");
+        } else {
             console.log("⏳ Nouveau salon détecté vide... Envoi du règlement officiel Aeroz Esports...");
 
             const embed1 = new EmbedBuilder()
@@ -93,22 +90,23 @@ module.exports = (client) => {
 
             await channel.send({ embeds: [embed1, embed2, embed3], components: [row] });
             console.log("✅ Règlement configuré en sécurité max avec succès !");
-
-        } catch (error) {
-            console.error("❌ Erreur lors de l'initialisation du règlement :", error);
         }
-    });
 
+    } catch (error) {
+        console.error("❌ Erreur lors de l'initialisation du règlement :", error);
+    }
+
+    // L'écouteur d'interactions reste actif en permanence en arrière-plan
     client.on('interactionCreate', async (interaction) => {
         if (!interaction.isButton()) return;
 
         if (interaction.customId === 'accept_rules_aeroz') {
             const member = interaction.member;
-            const aDejaLeRole = ROLES_A_DONNER.every(roleId => member.roles.cache.has(roleId));
+            const aDejaLeRole = ROLES_A_DONNER.some(roleId => member.roles.cache.has(roleId));
 
             if (aDejaLeRole) {
                 return interaction.reply({ 
-                    content: "❌ Vous avez déjà accepté le règlement et possédez déjà vos rôles de membre !", 
+                    content: "❌ Vous avez déjà accepté le règlement ou possédez un rôle restrictif !", 
                     ephemeral: true 
                 });
             }
@@ -122,11 +120,10 @@ module.exports = (client) => {
             } catch (error) {
                 console.error("❌ Impossible d'attribuer les rôles :", error);
                 return interaction.reply({ 
-                    content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Merci de contacter un administrateur.", 
+                    content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Vérifiez la hiérarchie du bot.", 
                     ephemeral: true 
                 });
             }
         }
     });
-
 };
