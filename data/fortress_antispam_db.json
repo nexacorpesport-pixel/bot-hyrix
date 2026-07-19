@@ -1,20 +1,13 @@
-import json
-
-# Structure de la base de données persistante pour l'anti-spam Aeroz V3
-db_initiale = {
-    "globalLockdown": False,
-    "lockedChannels": [],
-    "spamWhitelistChans": [],
-    "spamIgnoreRoles": [],
-    "spamConfig": {
-        "msgLimit": 5,
-        "msgInterval": 6000,
-        "maxLines": 4,
-        "maxEmojis": 8,
-        "capsRatio": 0.75
-    }
+{
+  "globalLockdown": false,
+  "lockedChannels": [],
+  "spamWhitelistChans": [],
+  "spamIgnoreRoles": [],
+  "spamConfig": {
+    "msgLimit": 5,
+    "msgInterval": 6000,
+    "maxLines": 4,
+    "maxEmojis": 8,
+    "capsRatio": 0.75
+  }
 }
-
-# Écriture du fichier au format JSON propre
-with open("fortress_antispam_db.json", "w", encoding="utf-8") as f:
-    json.dump(db_initiale, f, indent=2, ensure_ascii=False)
