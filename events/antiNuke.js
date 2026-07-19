@@ -1,12 +1,11 @@
 const {
     PermissionsBitField,
-    EmbedBuilder,
-    MessageFlags
+    EmbedBuilder
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "data", "fortress_antispam_db.json");
+const DB_PATH = path.join(__dirname, "../data", "fortress_antispam_db.json"); // Correction du chemin vers le dossier data général
 
 // Initialisation et chargement de la base de données sécurisée
 let db = { 
@@ -38,73 +37,72 @@ const saveDb = () => {
 };
 
 // Structures de surveillance temporaires (Mémoire vive)
-const WINDOW_TIME = 60000; // Fenêtre glissante de 1 minute (60000ms)
-const actionTrackers = new Map(); // Permet de compter le nombre d'actions par utilisateur
-const quarantineCache = new Map(); // Sauvegarde temporaire des rôles retirés en cas de fausse alerte
+const WINDOW_TIME = 60000; 
+const actionTrackers = new Map(); 
+const quarantineCache = new Map(); 
 
 const RAID_WINDOW = 30000; 
 const RAID_LIMIT = 5;          
 let recentJoins = [];
 let raidAlertOn = false;
 
-const BUNKER_KEY = "AZ-99X-BUNK-7421-ZOR";
-const BUNKER_CAT = "1528212816836821125"; 
-const BUNKER_ROLE = "1528212860965093396";
+// =====================================================
+// ⚠️ CONFIGURATION DES IDENTIFIANTS (À MODIFIER AVEC TES NOUVEAUX IDs)
+// =====================================================
+const OWNER_ID = "1431661348218998948"; // Ton ID Discord personnel
+const SUSPECT_ROLE = "1528212545758822536"; // ID du rôle "Muet" ou "Suspect" pour isoler les raids
+
+const CHANNELS = {
+    ANTI_RAID: "1528212628709703713",
+    LOGS_CHANNELS: "1528212667930509462",
+    LOGS_ROLES: "1528212709374562504",
+    LOGS_MOD: "1528212748952142006"
+};
 
 module.exports = (client) => {
 
     console.log("[🛡️ AEROZ FORTRESS] Protocole de défense global activé.");
 
-    const OWNER_ID = "1431661348218998948";
-    const SUSPECT_ROLE = "1528212545758822536"; 
-    
-    const CHANNELS = {
-        ANTI_RAID: "1528212628709703713",
-        LOGS_CHANNELS: "1528212667930509462",
-        LOGS_ROLES: "1528212709374562504",
-        LOGS_MOD: "1528212748952142006"
-    };
-
-    // Envoi des logs réseau vers les salons dédiés
+    // Envoi des logs réseau vers les salons dédiés avec sécurité intégrée
     const sendLog = async (chanId, embed) => {
+        if (!chanId) return;
         const chan = await client.channels.fetch(chanId).catch(() => null);
         if (chan) chan.send({ embeds: [embed.setTimestamp()] }).catch(() => {});
     };
 
-    // Vérifie si un membre du staff est immunisé (Owner ou Whitelist)
+    // Vérifie si un membre du staff est immunisé
     const isImmune = (userId, guild) => {
         if (userId === OWNER_ID || userId === guild.ownerId) return true;
         return db.whitelist.includes(userId);
     };
 
-    // Sanction suprême : Ban du staff malveillant et alerte d'urgence
+    // Sanction suprême : Exclusion du staff abusif
     const executeStaffSanction = async (guild, userId, reason) => {
         const member = await guild.members.fetch(userId).catch(() => null);
         if (!member) return;
 
-        // Si c'est un bot malveillant infiltré, on le ban direct
         if (member.user.bot) {
             await member.ban({ reason: `[ANTI-NUKE SYSTEM] ${reason}` }).catch(() => {});
             return;
         }
 
-        // Sauvegarde des rôles pour la commande +unquarantine avant de lui retirer ses droits
+        // Sauvegarde des rôles pour la commande de secours
         const rolesToStrip = member.roles.cache.filter(r => r.id !== guild.roles.everyone.id);
         quarantineCache.set(userId, rolesToStrip.map(r => r.id));
 
-        // Ban ou destitution selon la gravité. Ici, dépassement de quotas = BAN IMMEDIAT
+        // Bannissement immédiat suite à l'abus
         await member.ban({ reason: `[ANTI-NUKE QUOTA DETECTED] ${reason}` }).catch(() => {});
 
         const criticalEmbed = new EmbedBuilder()
             .setColor("#b71c1c")
             .setTitle("🚨 EXÉCUTION STAFF COMPTE : EXCLUSION 🚨")
-            .setDescription(`**Staff Détecté :** ${member.user} (\`${userId}\`)\n**Raison :** ${reason}\n\n⚠️ L'entité a été bannie définitivement du serveur réseau pour abus d'autorité.`);
+            .setDescription(`**Staff Détecté :** ${member.user} (\`${userId}\`)\n**Raison :** ${reason}\n\n⚠️ L'entité a été bannie définitivement pour abus d'autorité.`);
 
         const alertChan = await guild.channels.fetch(CHANNELS.ANTI_RAID).catch(() => null);
         if (alertChan) alertChan.send({ content: `<@${OWNER_ID}>`, embeds: [criticalEmbed] }).catch(() => {});
     };
 
-    // Système de gestion des quotas glissants sur 1 minute
+    // Gestion des quotas glissants
     const trackActionQuota = async (guild, userId, type, limitValue, actionLabel) => {
         if (isImmune(userId, guild)) return false;
 
@@ -113,24 +111,22 @@ module.exports = (client) => {
 
         if (!actionTrackers.has(trackingKey)) actionTrackers.set(trackingKey, []);
         
-        // Filtrer les actions datant de plus d'une minute
         let timestamps = actionTrackers.get(trackingKey).filter(t => now - t < WINDOW_TIME);
         timestamps.push(now);
         actionTrackers.set(trackingKey, timestamps);
 
-        // Si le nombre d'actions dépasse la limite stricte configurée
         if (timestamps.length > limitValue) {
-            await executeStaffSanction(guild, userId, `Dépassement du quota autorisé pour : ${actionLabel} (${timestamps.length}/${limitValue} en moins d'1 min)`);
+            await executeStaffSanction(guild, userId, `Dépassement du quota pour : ${actionLabel} (${timestamps.length}/${limitValue} en moins d'1 min)`);
             return true;
         }
         return false;
     };
 
     // =====================================================
-    // ⚙️ INTERCEPTIONS DES ACTIONS DE SÉCURITÉ CONTRE LE NUKE
+    // ⚙️ INTERCEPTIONS DES ACTIONS SÉCURITÉ
     // =====================================================
 
-    // Surveillance de l'intégrité des salons (Suppression)
+    // Surveillance Suppression Salons
     client.on("channelDelete", async (channel) => {
         if (!channel.guild) return;
         const server = channel.guild;
@@ -140,7 +136,6 @@ module.exports = (client) => {
 
         const executorId = logEntry.executor.id;
 
-        // Sauvegarde de secours du salon supprimé
         db.channels[channel.id] = {
             name: channel.name,
             type: channel.type,
@@ -160,7 +155,7 @@ module.exports = (client) => {
         sendLog(CHANNELS.LOGS_CHANNELS, logEmbed);
     });
 
-    // Surveillance de la création des salons
+    // Surveillance Création Salons
     client.on("channelCreate", async (channel) => {
         if (!channel.guild) return;
         const server = channel.guild;
@@ -178,8 +173,9 @@ module.exports = (client) => {
         await trackActionQuota(server, executorId, "channel", db.limits.channel, "Création de Salons");
     });
 
-    // Surveillance de la suppression de rôles
+    // Surveillance Suppression Rôles
     client.on("roleDelete", async (role) => {
+        if (!role.guild) return;
         const server = role.guild;
         const logs = await server.fetchAuditLogs({ limit: 1, type: 32 }).catch(() => null);
         const logEntry = logs?.entries.first();
@@ -206,8 +202,9 @@ module.exports = (client) => {
         sendLog(CHANNELS.LOGS_ROLES, logEmbed);
     });
 
-    // Surveillance des vagues de bans massifs par le staff
+    // Surveillance Bannissements Massifs
     client.on("guildBanAdd", async (ban) => {
+        if (!ban.guild) return;
         const server = ban.guild;
         const logs = await server.fetchAuditLogs({ limit: 1, type: 22 }).catch(() => null);
         const logEntry = logs?.entries.first();
@@ -217,7 +214,7 @@ module.exports = (client) => {
         await trackActionQuota(server, executorId, "ban", db.limits.ban, "Bannissements de Membres");
     });
 
-    // Interdiction stricte de l'injection de Bots malveillants
+    // Anti-Bot et Anti-Raid Joins
     client.on("guildMemberAdd", async (member) => {
         const server = member.guild;
         const timeNow = Date.now();
@@ -233,7 +230,6 @@ module.exports = (client) => {
             return;
         }
 
-        // Algorithme Anti-Raid Joins successifs
         recentJoins = recentJoins.filter(t => timeNow - t < RAID_WINDOW);
         recentJoins.push(timeNow);
 
@@ -252,7 +248,7 @@ module.exports = (client) => {
         }
     });
 
-    // Interdiction de création ou modification de Webhooks espions
+    // Anti-Webhook Modification / Création
     client.on("webhookUpdate", async (channel) => {
         if (!db.antiWebhook || !channel.guild) return;
         const server = channel.guild;
@@ -262,7 +258,6 @@ module.exports = (client) => {
 
         const executorId = logEntry.executor.id;
         if (!isImmune(executorId, server)) {
-            // Suppression immédiate du webhook créé
             const webhooks = await channel.fetchWebhooks().catch(() => null);
             if (webhooks) webhooks.forEach(w => w.delete("Anti-Webhook actif").catch(() => {}));
             await executeStaffSanction(server, executorId, "Création non autorisée d'un Webhook système");
@@ -270,7 +265,7 @@ module.exports = (client) => {
     });
 
     // =====================================================
-    // ⚙️ COMMANDES TERMINAL DE CONTRÔLE (OWNER UNIQUE)
+    // COMMANDES TERMINAL DE CONTRÔLE
     // =====================================================
     client.on("messageCreate", async (msg) => {
         if (!msg.guild || msg.author.bot) return;
@@ -279,7 +274,7 @@ module.exports = (client) => {
         const args = msg.content.slice(1).trim().split(/ +/);
         const command = args.shift().toLowerCase();
 
-        // 📜 MENU PRIVÉ COMPLET CAS DE CRISE (+help-antinuke)
+        // Menu d'aide Privé
         if (command === "help-antinuke") {
             if (msg.author.id !== OWNER_ID) return;
 
@@ -288,9 +283,9 @@ module.exports = (client) => {
                 .setDescription("Index des commandes de crise prioritaires configurées sur le noyau réseau.")
                 .setColor("#b71c1c")
                 .addFields(
-                    { name: "🚨 Actions Immédiates", value: "`+bunker-on <Clé>` - Confinement total du serveur réseau.\n`+bunker-off <Clé>` - Arrêt du protocole de confinement.\n`+panic` - Active toutes les barrières au maximum de force.", inline: false },
-                    { name: "⚙️ Configuration des Modules", value: "`+security-status` - Tableau de bord de l'état des systèmes.\n`+toggle antibot` - Alterne la protection anti-bots.\n`+toggle antiwebhook` - Alterne la protection contre les webhooks.\n`+setlimit <channel/role/ban> [nombre]` - Ajuste les quotas de ban automatique.", inline: false },
-                    { name: "👥 Gestion des Droits", value: "`+whitelist add/remove @membre` - Ajoute/Retire un adjoint de confiance.\n`+unquarantine @membre` - Restitue tous les rôles d'un staff purgé.", inline: false }
+                    { name: "🚨 Actions Immédiates", value: "`+panic` - Active toutes les barrières au maximum de force.", inline: false },
+                    { name: "⚙️ Configuration des Modules", value: "`+security-status` - Tableau de bord.\n`+toggle antibot` - Protection anti-bots.\n`+toggle antiwebhook` - Protection contre les webhooks.\n`+setlimit <channel/role/ban> [nombre]` - Ajuste les quotas.", inline: false },
+                    { name: "👥 Gestion des Droits", value: "`+whitelist add/remove @membre` - Ajoute/Retire un adjoint.\n`+unquarantine @membre` - Restitue les rôles d'un membre purgé.", inline: false }
                 )
                 .setFooter({ text: "Aeroz Private Administration Terminal" });
 
@@ -299,12 +294,12 @@ module.exports = (client) => {
                 .catch(() => msg.reply("❌ Impossible de vous envoyer le message privé. Vérifiez vos paramètres."));
         }
 
-        // Sécurité sur le reste des commandes : OWNER ID REQUIS
-        if (["security-status", "toggle", "setlimit", "whitelist", "unquarantine", "panic", "bunker-on", "bunker-off"].includes(command)) {
+        // Sécurité stricte sur l'accès aux commandes
+        if (["security-status", "toggle", "setlimit", "whitelist", "unquarantine", "panic"].includes(command)) {
             if (msg.author.id !== OWNER_ID) return await msg.delete().catch(() => {});
         }
 
-        // Affichage du tableau de bord de sécurité (+security-status)
+        // Tableau de bord
         if (command === "security-status") {
             const statusEmbed = new EmbedBuilder()
                 .setTitle("🛡️ Statut des Systèmes de Défense Aeroz")
@@ -319,7 +314,7 @@ module.exports = (client) => {
             return msg.channel.send({ embeds: [statusEmbed] });
         }
 
-        // Activation / Désactivation des interrupteurs (+toggle <module>)
+        // Switches de sécurité
         if (command === "toggle") {
             const moduleName = args[0]?.toLowerCase();
             if (moduleName === "antibot") {
@@ -335,7 +330,7 @@ module.exports = (client) => {
             return msg.reply("❌ Choix inconnu : `+toggle antibot` ou `+toggle antiwebhook`.");
         }
 
-        // Configuration dynamique des quotas (+setlimit <type> <nombre>)
+        // Changement de limites
         if (command === "setlimit") {
             const type = args[0]?.toLowerCase();
             const value = parseInt(args[1]);
@@ -344,10 +339,10 @@ module.exports = (client) => {
             }
             db.limits[type] = value;
             saveDb();
-            return msg.reply(`⚙️ Limite du quota pour **${type}** mise à jour à **${value} d'actions par minute** avant exclusion.`);
+            return msg.reply(`⚙️ Limite du quota pour **${type}** mise à jour à **${value} d'actions par minute**.`);
         }
 
-        // Gestion de la liste blanche de confiance (+whitelist)
+        // Système de Whitelist
         if (command === "whitelist") {
             const sub = args[0]?.toLowerCase();
             const target = msg.mentions.users.first() || args[1];
@@ -367,7 +362,7 @@ module.exports = (client) => {
             }
         }
 
-        // Sortie de quarantaine / Rétablissement rapide (+unquarantine)
+        // Récupération des rôles (Sortie de quarantaine)
         if (command === "unquarantine") {
             const target = msg.mentions.members.first();
             if (!target) return msg.reply("❌ Veuillez spécifier le membre.");
@@ -381,12 +376,13 @@ module.exports = (client) => {
             return msg.reply(`✅ Restitution effectuée. L'accès réseau complet a été réatribué à ${target}.`);
         }
 
-        // Bouton d'urgence absolue (+panic)
+        // Commande Panic
         if (command === "panic") {
             db.bunkerActive = true;
             db.antiBot = true;
             db.antiWebhook = true;
-            db.limits = { channel: 1, role: 1, ban: 1 }; // Quotas au minimum absolu
+            raidAlertOn = true;
+            db.limits = { channel: 1, role: 1, ban: 1 }; 
             saveDb();
             return msg.reply("🚨 **[PANIC PROTOCOL ENGAGED]** Toutes les barrières sont activées au maximum de force. Mode bunker engagé.");
         }
