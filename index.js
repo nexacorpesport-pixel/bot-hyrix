@@ -9,15 +9,6 @@ const {
     ActivityType
 } = require("discord.js");
 
-// Initialisation Base de données Coaching
-const COACHING_DB_PATH = path.join(__dirname, "./data/coaching_database.json");
-if (!fs.existsSync(path.dirname(COACHING_DB_PATH))) {
-    fs.mkdirSync(path.dirname(COACHING_DB_PATH), { recursive: true });
-}
-if (!fs.existsSync(COACHING_DB_PATH)) {
-    fs.writeFileSync(COACHING_DB_PATH, JSON.stringify({ dashboardMessageId: null, sessions: [] }, null, 4));
-}
-
 // =========================
 // EXPRESS
 // =========================
@@ -56,7 +47,6 @@ const moderation = require("./events/moderation");
 const logsSystem = require("./events/logs");
 const antiNuke = require("./events/antiNuke"); 
 const bienvenue = require("./events/bienvenue");
-const coaching = require("./events/coaching");
 const tournamentSystem = require("./events/tournament");
 const statsSystem = require("./events/stats_system");
 
@@ -118,9 +108,6 @@ client.once("ready", async () => {
         console.log("⏳ Chargement : Bienvenue...");
         bienvenue(client);
         
-        console.log("⏳ Chargement : Coaching...");
-        coaching(client);
-        
         console.log("⏳ Chargement : Tournament...");
         tournamentSystem(client);
 
@@ -129,10 +116,9 @@ client.once("ready", async () => {
 
         console.log("✅ TOUS LES SYSTÈMES ONT ÉTÉ CHARGÉS AVEC SUCCÈS !");
 
-        // Correction du setTimeout et du setInterval ici
         setTimeout(() => {
             updateStatus();
-            setInterval(updateStatus, 30000); // Pas de await ici
+            setInterval(updateStatus, 30000);
         }, 2000);
     } catch (err) {
         console.log("❌ CRASH PENDANT LE CHARGEMENT :", err);
