@@ -36,7 +36,7 @@ const voiceSessions = new Map();
 
 // Configuration du Staff
 const OWNER_ID = "1431661348218998948";
-const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"];
+const STAFF_ROLES = ["1528184662478946535", "1528184660436455545"];
 
 module.exports = (client) => {
 
