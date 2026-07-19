@@ -28,7 +28,6 @@ function saveDB(db) {
     fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 4));
 }
 
-// Fonction utilitaire pour parser les chaînes de durée (ex: 3d, 2h, 30m)
 function parseDuration(str) {
     const match = str.match(/^(\d+)([smhd])$/);
     if (!match) return null;
@@ -82,7 +81,7 @@ module.exports = (client) => {
 
     client.once("ready", () => {
         checkTempbans();
-        setInterval(checkTempbans, 60000); // Exécution toutes les 60 secondes
+        setInterval(checkTempbans, 60000);
     });
 
     client.on("messageCreate", async (message) => {
@@ -168,11 +167,12 @@ module.exports = (client) => {
             const db = loadDB();
             const historicalCount = db.users[diagnosticTarget.id]?.warns?.length || 0;
             const notes = db.users[diagnosticTarget.id]?.notes || "Aucune annotation sur ce profil.";
+            const displayTag = diagnosticTarget.user?.username || diagnosticTarget.username || "Utilisateur Inconnu";
 
             const diagnosticEmbed = new EmbedBuilder()
-                .setTitle(`🔍 Analyse Profil Réseau — ${diagnosticTarget.user?.tag || diagnosticTarget.tag}`)
+                .setTitle(`🔍 Analyse Profil Réseau — ${displayTag}`)
                 .setColor("#4285f4")
-                .setThumbnail(diagnosticTarget.user ? diagnosticTarget.user.displayAvatarURL({ dynamic: true }) : diagnosticTarget.displayAvatarURL())
+                .setThumbnail(diagnosticTarget.user ? diagnosticTarget.user.displayAvatarURL({ forceStatic: false }) : diagnosticTarget.displayAvatarURL())
                 .addFields(
                     { name: "🆔 UID Unique", value: `\`${diagnosticTarget.id}\``, inline: true },
                     { name: "⚠️ Index Infractions", value: `**${historicalCount} warn(s)**`, inline: true },
@@ -191,7 +191,6 @@ module.exports = (client) => {
         if (actionCmd === "warn") {
             if (!executioner.permissions.has(PermissionsBitField.Flags.ModerateMembers)) return;
             
-            // Sous-commande +warn deletion
             if (packetArgs[0] === "deletion") {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply("❌ Usage : `+warn deletion @membre [numéro]`");
@@ -215,7 +214,7 @@ module.exports = (client) => {
             db.users[networkTarget.id].warns.push({ reason: textReason, mod: executioner.id, date: Date.now() });
             saveDB(db);
 
-            const caseId = createCase("WARN", networkTarget.id, networkTarget.user.tag, textReason);
+            const caseId = createCase("WARN", networkTarget.id, networkTarget.user.username, textReason);
             await dispatchToAuditLogs("Warn", networkTarget.user, textReason, caseId);
             return deployEmbed("⚠️ Discipline : Avertissement Ajouté", `**Membre :** ${networkTarget}\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#fbbc05");
         }
@@ -228,7 +227,7 @@ module.exports = (client) => {
             const popped = db.users[networkTarget.id].warns.pop();
             saveDB(db);
 
-            const caseId = createCase("UNWARN", networkTarget.id, networkTarget.user.tag, `Révocation : ${popped.reason}`);
+            const caseId = createCase("UNWARN", networkTarget.id, networkTarget.user.username, `Révocation : ${popped.reason}`);
             await dispatchToAuditLogs("Unwarn", networkTarget.user, `Retrait automatique du dernier warn (${popped.reason})`, caseId);
             return deployEmbed("🧹 Amnistie Partielle", `Dernier avertissement de ${networkTarget} révoqué.\n**Motif annulé :** ${popped.reason}`, "#34a853");
         }
@@ -241,7 +240,7 @@ module.exports = (client) => {
             db.users[networkTarget.id].warns = [];
             saveDB(db);
 
-            const caseId = createCase("CLEARWARN", networkTarget.id, networkTarget.user.tag, "Purge intégrale");
+            const caseId = createCase("CLEARWARN", networkTarget.id, networkTarget.user.username, "Purge intégrale");
             await dispatchToAuditLogs("Clearwarn", networkTarget.user, "Destruction complète des antécédents", caseId);
             return deployEmbed("🧼 Réinitialisation d'Historique", `Le dossier d'infractions de ${networkTarget} a été purgé.`, "#34a853");
         }
@@ -252,7 +251,8 @@ module.exports = (client) => {
             const history = db.users[subject.id]?.warns || [];
             if (!history.length) return deployEmbed("📊 Historique Réseau", `${subject} possède un casier vierge.`, "#34a853");
             const list = history.map((inc, i) => `**${i + 1}.** ${inc.reason} *(Auteur: <@${inc.mod}> le <t:${parseInt(inc.date / 1000)}:d>)*`).join("\n");
-            return deployEmbed(`📊 Enregistrements de ${subject.user?.tag || subject.tag}`, list, "#4285f4");
+            const displayTag = subject.user?.username || subject.username || "Inconnu";
+            return deployEmbed(`📊 Enregistrements de ${displayTag}`, list, "#4285f4");
         }
 
         if (actionCmd === "warnlist") {
@@ -283,7 +283,7 @@ module.exports = (client) => {
             saveDB(db);
 
             await dispatchToAuditLogs("Profile Note", networkTarget.user, `Nouvelle note : ${textNote}`);
-            return message.reply(`✅ Note interne enregistrée avec succès sur le profil de **${networkTarget.user.tag}**.`);
+            return message.reply(`✅ Note interne enregistrée avec succès sur le profil de **${networkTarget.user.username}**.`);
         }
 
         // =====================================================
@@ -293,10 +293,11 @@ module.exports = (client) => {
             const subject = networkTarget || executioner;
             const db = loadDB();
             const targetCases = db.cases.filter(c => c.targetId === subject.id);
+            const displayTag = subject.user?.username || subject.username || "Inconnu";
 
             if (!targetCases.length) return deployEmbed("📊 Historique des Dossiers", `Aucun dossier d'action lourde pour ${subject}.`, "#34a853");
             const content = targetCases.slice(-10).map(c => `\`[CASE #${c.id}]\` **${c.type}** - Raison : ${c.reason} *(par <@${c.modId}>)*`).join("\n");
-            return deployEmbed(`📊 Dossiers de Sanction — ${subject.user?.tag || subject.tag}`, content, "#4285f4");
+            return deployEmbed(`📊 Dossiers de Sanction — ${displayTag}`, content, "#4285f4");
         }
 
         // =====================================================
@@ -308,11 +309,11 @@ module.exports = (client) => {
             if (!networkTarget.kickable) return message.reply("❌ Autorité hiérarchique insuffisante.");
             const textReason = packetArgs.slice(1).join(" ") || "Aucune raison spécifiée";
             
-            const caseId = createCase("KICK", networkTarget.id, networkTarget.user.tag, textReason);
-            await dispatchToAuditLogs("Kick", networkTarget.user, textReason, caseId);
             try {
                 await networkTarget.kick(textReason);
-                return deployEmbed("👢 Expulsion Exécutée", `**Membre :** ${networkTarget.user.tag}\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#ea4335");
+                const caseId = createCase("KICK", networkTarget.id, networkTarget.user.username, textReason);
+                await dispatchToAuditLogs("Kick", networkTarget.user, textReason, caseId);
+                return deployEmbed("👢 Expulsion Exécutée", `**Membre :** ${networkTarget.user.username}\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#ea4335");
             } catch (err) { return message.reply("❌ Erreur API lors de l'expulsion."); }
         }
 
@@ -322,11 +323,11 @@ module.exports = (client) => {
             if (!networkTarget.bannable) return message.reply("❌ Autorité hiérarchique insuffisante.");
             const textReason = packetArgs.slice(1).join(" ") || "Aucune raison spécifiée";
             
-            const caseId = createCase("BAN", networkTarget.id, networkTarget.user.tag, textReason);
-            await dispatchToAuditLogs("Ban", networkTarget.user, textReason, caseId);
             try {
                 await networkTarget.ban({ reason: textReason });
-                return deployEmbed("🔨 Bannissement Définitif", `**Membre :** ${networkTarget.user.tag}\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#ea4335");
+                const caseId = createCase("BAN", networkTarget.id, networkTarget.user.username, textReason);
+                await dispatchToAuditLogs("Ban", networkTarget.user, textReason, caseId);
+                return deployEmbed("🔨 Bannissement Définitif", `**Membre :** ${networkTarget.user.username}\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#ea4335");
             } catch (err) { return message.reply("❌ Erreur API lors de l'exclusion."); }
         }
 
@@ -343,16 +344,17 @@ module.exports = (client) => {
             const textReason = packetArgs.slice(2).join(" ") || "Aucune raison spécifiée";
             const endsAt = Date.now() + durationMs;
 
-            const db = loadDB();
-            db.tempbans.push({ userId: networkTarget.id, guildId: message.guild.id, endsAt });
-            saveDB(db);
-
-            const caseId = createCase("TEMPBAN", networkTarget.id, networkTarget.user.tag, `Durée: ${durationStr} - ${textReason}`);
-            await dispatchToAuditLogs("Tempban", networkTarget.user, `Durée: ${durationStr} | ${textReason}`, caseId);
-            
             try {
                 await networkTarget.ban({ reason: `[Tempban ${durationStr}] ${textReason}` });
-                return deployEmbed("⏳ Bannissement Temporaire", `**Membre :** ${networkTarget.user.tag}\n**Durée :** ${durationStr}\n**Expiration :** <t:${parseInt(endsAt / 1000)}:f>\n**Dossier :** #${caseId}`, "#ea4335");
+                
+                const db = loadDB();
+                db.tempbans.push({ userId: networkTarget.id, guildId: message.guild.id, endsAt });
+                saveDB(db);
+
+                const caseId = createCase("TEMPBAN", networkTarget.id, networkTarget.user.username, `Durée: ${durationStr} - ${textReason}`);
+                await dispatchToAuditLogs("Tempban", networkTarget.user, `Durée: ${durationStr} | ${textReason}`, caseId);
+                
+                return deployEmbed("⏳ Bannissement Temporaire", `**Membre :** ${networkTarget.user.username}\n**Durée :** ${durationStr}\n**Expiration :** <t:${parseInt(endsAt / 1000)}:f>\n**Dossier :** #${caseId}`, "#ea4335");
             } catch (err) { return message.reply("❌ Erreur API lors du tempban."); }
         }
 
@@ -375,10 +377,10 @@ module.exports = (client) => {
             const timeModifier = parseInt(packetArgs[1]) || 5;
             const textReason = packetArgs.slice(2).join(" ") || "Aucune raison spécifiée";
             
-            const caseId = createCase("MUTE", networkTarget.id, networkTarget.user.tag, `${timeModifier}m - ${textReason}`);
-            await dispatchToAuditLogs("Mute", networkTarget.user, `Durée: ${timeModifier}m | ${textReason}`, caseId);
             try {
                 await networkTarget.timeout(timeModifier * 60 * 1000, textReason);
+                const caseId = createCase("MUTE", networkTarget.id, networkTarget.user.username, `${timeModifier}m - ${textReason}`);
+                await dispatchToAuditLogs("Mute", networkTarget.user, `Durée: ${timeModifier}m | ${textReason}`, caseId);
                 return deployEmbed("🔇 Isolation Réseau", `**Membre :** ${networkTarget}\n**Durée :** ${timeModifier} minutes\n**Motif :** ${textReason}\n**Dossier :** #${caseId}`, "#fbbc05");
             } catch (err) { return message.reply("❌ Erreur lors de l'isolement."); }
         }
@@ -388,7 +390,7 @@ module.exports = (client) => {
             if (!networkTarget) return message.reply("❌ Cible manquante.");
             try {
                 await networkTarget.timeout(null);
-                const caseId = createCase("UNMUTE", networkTarget.id, networkTarget.user.tag, "Rétablissement de parole");
+                const caseId = createCase("UNMUTE", networkTarget.id, networkTarget.user.username, "Rétablissement de parole");
                 await dispatchToAuditLogs("Unmute", networkTarget.user, "Rétablissement anticipé", caseId);
                 return deployEmbed("🔊 Fin d'Isolation", `${networkTarget} a été ré-autorisé à parler.`, "#34a853");
             } catch (err) { return message.reply("❌ Rétablissement impossible."); }
@@ -400,19 +402,19 @@ module.exports = (client) => {
         if (actionCmd === "clear") {
             if (!executioner.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
 
-            // Sous-commande +clear bot
+            // Correction ici : filtrage sécurisé
             if (packetArgs[0] === "bot") {
                 const amount = parseInt(packetArgs[1]) || 50;
                 await message.delete().catch(() => {});
                 const fetched = await message.channel.messages.fetch({ limit: 100 });
-                const botMessages = fetched.filter(m => m.author.bot).status ? fetched.filter(m => m.author.bot) : fetched.filter(m => m.author.bot).first(amount);
+                const botMessages = fetched.filter(m => m.author.bot).first(amount);
+                
                 const deleted = await message.channel.bulkDelete(botMessages, true);
                 await dispatchToAuditLogs("Clear Bot", null, `${deleted.size} messages de bots purgés.`);
                 const log = await message.channel.send(`🧹 **Purge Bots :** ${deleted.size} messages nettoyés.`);
                 return setTimeout(() => log.delete().catch(() => {}), 4000);
             }
 
-            // Sous-commande +clear user
             if (packetArgs[0] === "user") {
                 const target = message.mentions.members.first();
                 if (!target) return message.reply("❌ Spécifiez le membre : `+clear user @membre [nombre]`");
@@ -420,13 +422,13 @@ module.exports = (client) => {
                 await message.delete().catch(() => {});
                 const fetched = await message.channel.messages.fetch({ limit: 100 });
                 const userMessages = fetched.filter(m => m.author.id === target.id).first(amount);
+                
                 const deleted = await message.channel.bulkDelete(userMessages, true);
                 await dispatchToAuditLogs("Clear User", target.user, `${deleted.size} messages purgés de cet utilisateur.`);
-                const log = await message.channel.send(`🧹 **Purge Ciblée :** ${deleted.size} messages de ${target.user.tag} nettoyés.`);
+                const log = await message.channel.send(`🧹 **Purge Ciblée :** ${deleted.size} messages de ${target.user.username} nettoyés.`);
                 return setTimeout(() => log.delete().catch(() => {}), 4000);
             }
 
-            // Purge classique standard
             const volume = parseInt(packetArgs[0]);
             if (!volume || volume < 1 || volume > 100) return message.reply("❌ Volume entre 1 et 100 requis.");
             await message.delete().catch(() => {});
@@ -456,7 +458,7 @@ module.exports = (client) => {
         }
 
         // =====================================================
-        // 🔒 LOCK & UNLOCK INTELLIGENT (SCAN TOUS RÔLES)
+        // 🔒 LOCK & UNLOCK INTELLIGENT
         // =====================================================
         if (actionCmd === "lock") {
             if (!executioner.permissions.has(PermissionsBitField.Flags.ManageChannels)) return;
