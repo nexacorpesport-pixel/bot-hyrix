@@ -1,7 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const REGLEMENT_CHANNEL_ID = "1528184670951444553"; 
-const ROLES_A_DONNER = ["1528184586649993319", "1528184576525205626"]; 
+const ROLES_A_DONNER = ["1528154586649993319", "1528184576525205626"]; 
+const ROLE_A_SUPPRIMER = "1528403395554054265"; // Ton rôle d'isolation temporaire
 
 // Variable pour s'assurer que l'écouteur n'est enregistré qu'une seule fois au total
 let interactionListenerRegistered = false;
@@ -116,15 +117,22 @@ module.exports = async (client) => {
         }
 
         try {
+            // Étape 1 : On ajoute les nouveaux rôles autorisés
             await member.roles.add(ROLES_A_DONNER);
+            
+            // Étape 2 : On retire de force le rôle temporaire d'isolation s'il l'a
+            if (member.roles.cache.has(ROLE_A_SUPPRIMER)) {
+                await member.roles.remove(ROLE_A_SUPPRIMER);
+            }
+
             return interaction.reply({ 
                 content: "✅ **Merci !** Vous avez accepté le règlement d'Aeroz Esports. Vos rôles vous ont été attribués et l'accès complet au serveur est débloqué !", 
                 ephemeral: true 
             });
         } catch (error) {
-            console.error("❌ Impossible d'attribuer les rôles :", error);
+            console.error("❌ Impossible de modifier les rôles du membre :", error);
             return interaction.reply({ 
-                content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Vérifiez que le rôle du bot soit positionné tout en haut dans les paramètres du serveur (Hiérarchie).", 
+                content: "⚠️ Une erreur est survenue lors de la mise à jour de vos rôles. Vérifiez que le rôle du bot soit positionné tout en haut dans les paramètres du serveur (Hiérarchie).", 
                 ephemeral: true 
             });
         }
