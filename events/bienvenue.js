@@ -5,21 +5,21 @@ const invitesCache = new Map();
 module.exports = (client) => {
     console.log("[Onboarding] Système d'accueil et tracking d'invitations opérationnel.");
 
-    const GUILD_ID = "1501625824028266676";
+    const GUILD_ID = "1528107464908603657";
     
     const CHANNELS = {
-        WELCOME: "1501626008564928572",
-        LOGS_MEMBRES: "1521930283094638722",
-        LOGS_INVITES: "1502757854568779944"
+        WELCOME: "1528184669827239966",
+        LOGS_MEMBRES: "1528211548198277130",
+        LOGS_INVITES: "1528211564598001685"
     };
 
     const LINKS = {
-        REGLEMENT: "https://discord.com/channels/1501625824028266676/1501626010049712180",
-        PRESENTATION: "https://discord.com/channels/1501625824028266676/1501626026252304555",
-        CRITERES: "https://discord.com/channels/1501625824028266676/1501626012822147162"
+        REGLEMENT: "https://discord.com/channels/1528107464908603657/1528184670951444553",
+        PRESENTATION: "https://discord.com/channels/1528107464908603657/1528184676139667466",
+        CRITERES: "https://discord.com/channels/1528107464908603657/1528184701607608480"
     };
 
-    const LOGO_URL = "https://media.discordapp.net/attachments/1456718862283444414/1464677828749561987/mwWWI6B.png?ex=6a47f586&is=6a46a406&hm=2c1bcf48d52289db59bc89a72f04586c541bea085a8dbc2f65ef0025e70c06d9&=&format=webp&quality=lossless&width=960&height=960";
+    const LOGO_URL = "https://media.discordapp.net/attachments/1521974012719136899/1525981856606982205/logo_aeroz.png?ex=6a5d45d9&is=6a5bf459&hm=a08b7caade70a6d57c07508f4108830c80f5738857274e2032f6b5a6da4a1fd5&=&format=webp&quality=lossless&width=960&height=960";
 
     // Mise en cache des invites au démarrage
     client.once("ready", async () => {
