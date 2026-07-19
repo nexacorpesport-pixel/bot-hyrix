@@ -120,9 +120,6 @@ client.once("ready", async () => {
         console.log("⏳ Chargement : Coaching...");
         coaching(client);
         
-        console.log("⏳ Chargement : Effectif...");
-        effectifSystem(client);
-
         console.log("⏳ Chargement : Tournament...");
         tournamentSystem(client);
 
