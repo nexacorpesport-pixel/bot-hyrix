@@ -17,9 +17,9 @@ const path = require("path");
 const config = require("../data/ticketConfig");
 
 // SYSTEM ROUTING IDS
-const LOGS_CHANNEL = "1521923500439240968";
-const ARCHIVE_CHANNEL = "1521923533272256773";
-const AVIS_CHANNEL = "1521923443006898237"; 
+const LOGS_CHANNEL = "1528213677860458566";
+const ARCHIVE_CHANNEL = "1528214540603359272";
+const AVIS_CHANNEL = "1528214604428083330"; 
 
 // LOCAL DB ENGINE (STABILITY & STATISTICS)
 const DB_PATH = path.join(__dirname, "../data/ticket_database.json");
