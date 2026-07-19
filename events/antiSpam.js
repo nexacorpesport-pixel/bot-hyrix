@@ -70,8 +70,8 @@ module.exports = (client) => {
     console.log("[🛡️ AEROZ ANTISPAM V3] Module de protection textuelle actif.");
 
     const OWNER_ID = "1431661348218998948";
-    const CEO_ROLE = "1501625944148934758"; 
-    const LOGS_CHAN = "1522354627633217597";
+    const CEO_ROLE = "1528184662478946535"; 
+    const LOGS_CHAN = "1528212667930509462";
 
     // Vérifie si un membre contourne les règles de l'anti-spam (Owner, Rôles ou salons spécifiques)
     const isImmune = (userId, guild, member = null, channelId = null) => {
