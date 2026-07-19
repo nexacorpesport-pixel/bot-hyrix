@@ -58,9 +58,10 @@ const antiNuke = require("./events/antiNuke");
 const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
 const tournamentSystem = require("./events/tournament");
-const statsSystem = require("./events/stats_system"); // À la place de "./events/stats"
+const statsSystem = require("./events/stats_system");
 
-const GUILD_ID = "1528107464908603657";
+// ⚠️ METS BIEN LE NOUVEL ID DE TON SERVEUR ICI !
+const GUILD_ID = "1528107464908603657"; 
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
 let index = 0;
 
@@ -128,9 +129,10 @@ client.once("ready", async () => {
 
         console.log("✅ TOUS LES SYSTÈMES ONT ÉTÉ CHARGÉS AVEC SUCCÈS !");
 
-        setTimeout(async () => {
-            await updateStatus();
-            await setInterval(updateStatus, 30000);
+        // Correction du setTimeout et du setInterval ici
+        setTimeout(() => {
+            updateStatus();
+            setInterval(updateStatus, 30000); // Pas de await ici
         }, 2000);
     } catch (err) {
         console.log("❌ CRASH PENDANT LE CHARGEMENT :", err);
