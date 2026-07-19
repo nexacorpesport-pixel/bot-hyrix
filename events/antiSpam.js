@@ -8,7 +8,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "data", "fortress_antispam_db.json");
+const DB_PATH = path.join(__dirname, "../data", "fortress_antispam_db.json"); // Alignement du chemin d'accès au stockage de données
 
 // Structure de la base de données persistante pour l'anti-spam
 let db = { 
@@ -43,7 +43,6 @@ const saveDb = () => {
 // Trackers volatils stockés en mémoire vive (RAM)
 const msgTracker = new Map();
 const warnTracker = new Map();
-const whTracker = new Map();
 const spamTracker = new Map();
 const reactTracker = new Map();
 const editTracker = new Map(); 
@@ -69,11 +68,14 @@ function getSimilarity(s1, s2) {
 module.exports = (client) => {
     console.log("[🛡️ AEROZ ANTISPAM V3] Module de protection textuelle actif.");
 
-    const OWNER_ID = "1431661348218998948";
-    const CEO_ROLE = "1528184662478946535"; 
-    const LOGS_CHAN = "1528212667930509462";
+    // =====================================================
+    // ⚠️ CONFIGURATION DES IDENTIFIANTS (À MODIFIER AVEC TES NOUVEAUX IDs)
+    // =====================================================
+    const OWNER_ID = "1431661348218998948"; // Ton ID personnel
+    const CEO_ROLE = "1528184662478946535";  // ID du rôle d'administration/modération supérieur
+    const LOGS_CHAN = "1528212667930509462"; // ID du salon où envoyer les alertes de crise
 
-    // Vérifie si un membre contourne les règles de l'anti-spam (Owner, Rôles ou salons spécifiques)
+    // Vérifie si un membre contourne les règles de l'anti-spam
     const isImmune = (userId, guild, member = null, channelId = null) => {
         if (userId === OWNER_ID || userId === guild.ownerId) return true;
         if (bypassTracker.has(userId)) return true;
@@ -109,7 +111,10 @@ module.exports = (client) => {
             .setEmoji("🛑");
 
         const row = new ActionRowBuilder().addComponents(b1, b2);
-        logChan.send({ content: `<@&${CEO_ROLE}>`, embeds: [alertEmbed], components: [row] }).catch(() => {});
+        
+        // Sécurité si le rôle CEO n'existe pas encore pour éviter un ping invalide
+        const roleMention = guild.roles.cache.has(CEO_ROLE) ? `<@&${CEO_ROLE}>` : "";
+        logChan.send({ content: roleMention, embeds: [alertEmbed], components: [row] }).catch(() => {});
     };
 
     // Analyseur de conformité de structure de message
@@ -173,7 +178,7 @@ module.exports = (client) => {
                 return;
             }
 
-            // 📜 MENU D'AIDE DEMANDÉ (+help-antispam)
+            // Manuel d'aide
             if (command === "help-antispam") {
                 const hEmbed = new EmbedBuilder()
                     .setTitle("🛠️ Manuel d'Urgence Système — Anti-Spam Aeroz")
@@ -333,16 +338,15 @@ module.exports = (client) => {
                 return msg.reply("♻️ **Base de données réinitialisée aux valeurs d'usine.**");
             }
 
-            return; // On arrête là si c'était une commande valide
+            return;
         }
 
-        // --- SURVEILLANCE ACTIVE DU TEXTE (FLUX COMMUNS) ---
+        // --- SURVEILLANCE ACTIVE DU TEXTE ---
         if (isImmune(msg.author.id, msg.guild, msg.member, msg.channel.id)) return;
 
         const now = Date.now();
         const userId = msg.author.id;
 
-        // Détection de la mise en forme interdite (Lignes, caps, émojis...)
         const broken = await isBadMessage(msg);
         if (broken) return;
 
@@ -358,7 +362,7 @@ module.exports = (client) => {
         }
         spamTracker.set(userId, { content: msg.content, time: now, channel: msg.channel.id });
 
-        // Algorithme de fréquence et vitesse d'envoi (Quotas)
+        // Algorithme de quotas de messages
         if (!msgTracker.has(userId)) msgTracker.set(userId, []);
         let times = msgTracker.get(userId).filter(t => now - t < db.spamConfig.msgInterval);
         times.push(now);
@@ -368,23 +372,25 @@ module.exports = (client) => {
             let warns = (warnTracker.get(userId) || 0) + 1;
             warnTracker.set(userId, warns);
 
+            const canBulkDelete = msg.channel.isTextBased() && typeof msg.channel.bulkDelete === "function";
+
             if (warns === 1) {
-                await msg.channel.bulkDelete(6).catch(() => {});
+                if (canBulkDelete) await msg.channel.bulkDelete(6).catch(() => {});
                 return msg.channel.send(`⚠️ ${msg.author}, baissez le rythme de vos messages.`).then(m => setTimeout(() => m.delete().catch(() => {}), 4000));
             }
             if (warns === 2) {
-                await msg.channel.bulkDelete(10).catch(() => {});
+                if (canBulkDelete) await msg.channel.bulkDelete(10).catch(() => {});
                 await msg.member.timeout(900000, "Spam continu (Niv 2)").catch(() => {});
                 return msg.channel.send(`🔒 ${msg.author} a été réduit au silence pendant 15 minutes.`);
             }
             if (warns === 3) {
-                await msg.channel.bulkDelete(12).catch(() => {});
+                if (canBulkDelete) await msg.channel.bulkDelete(12).catch(() => {});
                 await msg.member.timeout(1800000, "Récidive de spam (Niv 3)").catch(() => {});
                 return msg.channel.send(`🔒 ${msg.author} a été réduit au silence pendant 30 minutes.`);
             }
             if (warns >= 4) {
                 warnTracker.set(userId, 0); 
-                await msg.channel.bulkDelete(40).catch(() => {});
+                if (canBulkDelete) await msg.channel.bulkDelete(40).catch(() => {});
                 await msg.member.timeout(86400000, "Attaque / Spam extrême (24h)").catch(() => {});
                 
                 blockedChans.add(msg.channel.id);
@@ -397,7 +403,7 @@ module.exports = (client) => {
         }
     });
 
-    // --- DETECTION DU SPAM PAR EDITIONS D'UN MESSAGE ---
+    // --- DETECTION DU SPAM PAR EDITIONS ---
     client.on("messageUpdate", async (oldMsg, newMsg) => {
         if (!newMsg.guild || newMsg.author.bot) return;
         if (isImmune(newMsg.author.id, newMsg.guild, newMsg.member, newMsg.channel.id)) return;
@@ -420,7 +426,7 @@ module.exports = (client) => {
         await isBadMessage(newMsg);
     });
 
-    // --- DÉTECTEUR EXPÉDITIF DE GHOST PINGS ---
+    // --- TRACEUR DE GHOST PINGS ---
     client.on("messageDelete", async (msg) => {
         if (!msg.guild || msg.author.bot) return;
         if (isImmune(msg.author.id, msg.guild, msg.member, msg.channel.id)) return;
@@ -466,7 +472,7 @@ module.exports = (client) => {
         }
     });
 
-    // --- ACTIONS EXÉCUTÉES VIA LES BOUTONS INTERACTIFS ---
+    // --- ACTIONS DES BOUTONS INTERACTIFS ---
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
         if (!interaction.customId.startsWith("sec_unlock_") && interaction.customId !== "sec_global_lock") return;
