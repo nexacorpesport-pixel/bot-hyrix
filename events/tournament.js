@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // --- CONFIGURATION AEROZ ESPORTS ---
-const REGLEMENT_CHANNEL_ID = "1524748976639971338"; 
-const ROLES_A_DONNER = ["1501625972896825434", "1501920728302223381"]; 
+const REGLEMENT_CHANNEL_ID = "1528184670951444553"; 
+const ROLES_A_DONNER = ["1528184586649993319", "1528184576525205626"]; 
 
 module.exports = async (client) => {
     // PLUS DE client.on('ready') ICI ! Vu que index.js appelle cette fonction au moment du ready,
