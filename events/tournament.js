@@ -1,25 +1,24 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-// --- CONFIGURATION AEROZ ESPORTS ---
 const REGLEMENT_CHANNEL_ID = "1528184670951444553"; 
 const ROLES_A_DONNER = ["1528184586649993319", "1528184576525205626"]; 
 
-module.exports = async (client) => {
-    // PLUS DE client.on('ready') ICI ! Vu que index.js appelle cette fonction au moment du ready,
-    // le code s'exécute directement et proprement.
+// Variable pour s'assurer que l'écouteur n'est enregistré qu'une seule fois au total
+let interactionListenerRegistered = false;
 
+module.exports = async (client) => {
     try {
         const channel = await client.channels.fetch(REGLEMENT_CHANNEL_ID);
         if (!channel) return console.error("❌ Salon règlement introuvable.");
 
-        // ÉTAPE SÉCURITÉ MAX : On vérifie si le bot a déjà posté le règlement ici
+        // ÉTAPE SÉCURITÉ MAX : On vérifie si le bot a déjà posté le règlement
         const messages = await channel.messages.fetch({ limit: 50 });
         const botMessage = messages.find(m => m.author.id === client.user.id && m.embeds.length > 0);
 
         if (botMessage) {
-            console.log("✅ Le règlement est déjà présent dans ce nouveau salon. Pas besoin de le renvoyer.");
+            console.log("✅ Le règlement est déjà présent dans ce salon. Pas besoin de le renvoyer.");
         } else {
-            console.log("⏳ Nouveau salon détecté vide... Envoi du règlement officiel Aeroz Esports...");
+            console.log("⏳ Salon vide... Envoi du règlement officiel Aeroz Esports...");
 
             const embed1 = new EmbedBuilder()
                 .setColor('#00ffcc')
@@ -89,41 +88,45 @@ module.exports = async (client) => {
             );
 
             await channel.send({ embeds: [embed1, embed2, embed3], components: [row] });
-            console.log("✅ Règlement configuré en sécurité max avec succès !");
+            console.log("✅ Règlement configuré avec succès !");
         }
-
     } catch (error) {
         console.error("❌ Erreur lors de l'initialisation du règlement :", error);
     }
 
-    // L'écouteur d'interactions reste actif en permanence en arrière-plan
+    // Protection contre la duplication de l'écouteur d'événements
+    if (interactionListenerRegistered) return;
+    interactionListenerRegistered = true;
+
     client.on('interactionCreate', async (interaction) => {
         if (!interaction.isButton()) return;
+        if (interaction.customId !== 'accept_rules_aeroz') return;
 
-        if (interaction.customId === 'accept_rules_aeroz') {
-            const member = interaction.member;
-            const aDejaLeRole = ROLES_A_DONNER.some(roleId => member.roles.cache.has(roleId));
+        const member = interaction.member;
+        if (!member) return;
 
-            if (aDejaLeRole) {
-                return interaction.reply({ 
-                    content: "❌ Vous avez déjà accepté le règlement ou possédez un rôle restrictif !", 
-                    ephemeral: true 
-                });
-            }
+        // On vérifie si l'utilisateur possède déjà TOUS les rôles à donner
+        const aTousLesRoles = ROLES_A_DONNER.every(roleId => member.roles.cache.has(roleId));
 
-            try {
-                await member.roles.add(ROLES_A_DONNER);
-                return interaction.reply({ 
-                    content: "✅ **Merci !** Vous avez accepté le règlement d'Aeroz Esports. Vos rôles vous ont été attribués et l'accès complet au serveur est débloqué !", 
-                    ephemeral: true 
-                });
-            } catch (error) {
-                console.error("❌ Impossible d'attribuer les rôles :", error);
-                return interaction.reply({ 
-                    content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Vérifiez la hiérarchie du bot.", 
-                    ephemeral: true 
-                });
-            }
+        if (aTousLesRoles) {
+            return interaction.reply({ 
+                content: "❌ Vous avez déjà accepté le règlement et possédez déjà vos accès !", 
+                ephemeral: true 
+            });
+        }
+
+        try {
+            await member.roles.add(ROLES_A_DONNER);
+            return interaction.reply({ 
+                content: "✅ **Merci !** Vous avez accepté le règlement d'Aeroz Esports. Vos rôles vous ont été attribués et l'accès complet au serveur est débloqué !", 
+                ephemeral: true 
+            });
+        } catch (error) {
+            console.error("❌ Impossible d'attribuer les rôles :", error);
+            return interaction.reply({ 
+                content: "⚠️ Une erreur est survenue lors de l'attribution de vos rôles. Vérifiez que le rôle du bot soit positionné tout en haut dans les paramètres du serveur (Hiérarchie).", 
+                ephemeral: true 
+            });
         }
     });
 };
