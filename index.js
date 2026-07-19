@@ -61,7 +61,7 @@ const tournamentSystem = require("./events/tournament");
 const effectifSystem = require("./events/effectif"); 
 const statsSystem = require("./events/stats_system"); // À la place de "./events/stats"
 
-const GUILD_ID = "1501625824028266676";
+const GUILD_ID = "1528107464908603657";
 const TWITCH_URL = "https://www.twitch.tv/teampyxar";
 let index = 0;
 
@@ -81,7 +81,7 @@ async function updateStatus() {
         } else if (index === 1) {
             status = { type: ActivityType.Watching, name: `Surveille ${memberCount} membres` };
         } else {
-            status = { type: ActivityType.Watching, name: "Dev By Sheer" };
+            status = { type: ActivityType.Watching, name: "Dev By Lyzo" };
         }
 
         client.user.setPresence({ activities: [status], status: "online" });
