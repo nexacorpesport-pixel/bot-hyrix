@@ -1,18 +1,18 @@
 const { AuditLogEvent, EmbedBuilder, ChannelType } = require("discord.js");
 
 const LOGS = {
-    general: "1523471656343961710",
-    moderation: "1502757141369589830",
-    antiraid: "1522354528626802728",
-    members: "1521930283094638722",
-    messages: "1502756924503097415",
-    vocaux: "1502757392054747356",
-    serveur: "1523471349513850931",
-    bot: "1523471412566949908",
-    permissions: "1522354480631517204",
-    tickets: "1521923500439240968",
-    tempvoc: "1521931122043256892",
-    sanctions: "1502757141369589830"
+    general: "1528213347403567214",
+    moderation: "1528212748952142006",
+    antiraid: "1528212628709703713",
+    members: "1528211548198277130",
+    messages: "1528213478530093146",
+    vocaux: "1528213516534808577",
+    serveur: "1528213554623287438",
+    bot: "1528213591709323315",
+    permissions: "1528213635372155060",
+    tickets: "1528213677860458566",
+    tempvoc: "1528213718595539064",
+    sanctions: "1528213768818131077"
 };
 
 module.exports = (client) => {
