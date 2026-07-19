@@ -15,6 +15,18 @@ const LOGS = {
     sanctions: "1528213768818131077"
 };
 
+// Traducteur des types de salons numériques de d.js v14 en texte clair
+const channelTypesText = {
+    [ChannelType.GuildText]: "Texte",
+    [ChannelType.GuildVoice]: "Vocal",
+    [ChannelType.GuildCategory]: "Catégorie",
+    [ChannelType.GuildAnnouncement]: "Annonces",
+    [ChannelType.GuildStageVoice]: "Stage",
+    [ChannelType.PublicThread]: "Fil Public",
+    [ChannelType.PrivateThread]: "Fil Privé",
+    [ChannelType.GuildForum]: "Forum"
+};
+
 module.exports = (client) => {
 
     async function sendLog(channelId, embed) {
@@ -33,9 +45,9 @@ module.exports = (client) => {
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("✅ Membre rejoint")
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .setThumbnail(member.user.displayAvatarURL({ forceStatic: false }))
             .addFields(
-                { name: "👤 Utilisateur", value: `${member.user.tag} (<@${member.id}>)`, inline: true },
+                { name: "👤 Utilisateur", value: `${member.user.username} (<@${member.id}>)`, inline: true },
                 { name: "🆔 ID", value: member.id, inline: true },
                 { name: "📅 Compte créé", value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>` }
             )
@@ -49,9 +61,9 @@ module.exports = (client) => {
         const embed = new EmbedBuilder()
             .setColor("Red")
             .setTitle("❌ Membre parti")
-            .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+            .setThumbnail(member.user.displayAvatarURL({ forceStatic: false }))
             .addFields(
-                { name: "👤 Utilisateur", value: member.user.tag, inline: true },
+                { name: "👤 Utilisateur", value: member.user.username, inline: true },
                 { name: "🆔 ID", value: member.id, inline: true }
             )
             .setFooter({ text: "Aeroz Esports • Logs" })
@@ -60,17 +72,16 @@ module.exports = (client) => {
         sendLog(LOGS.members, embed);
     });
 
-    // --- SUIVI DES MESSAGES (Gestion des Partials) ---
+    // --- SUIVI DES MESSAGES ---
 
     client.on("messageDelete", async (message) => {
         if (!message.guild || message.author?.bot) return;
 
-        // Si le message n'est pas dans le cache
         if (message.partial) {
             const embed = new EmbedBuilder()
                 .setColor("Orange")
                 .setTitle("🗑️ Message supprimé (Inconnu)")
-                .setDescription(`Un message non mis en cache a été supprimé dans ${message.channel}.`)
+                .setDescription(`Un message absent du cache a été supprimé dans le salon <#${message.channelId}>.`)
                 .setTimestamp();
             return sendLog(LOGS.messages, embed);
         }
@@ -79,8 +90,8 @@ module.exports = (client) => {
             .setColor("Orange")
             .setTitle("🗑️ Message supprimé")
             .addFields(
-                { name: "👤 Auteur", value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
-                { name: "📍 Salon", value: `${message.channel}`, inline: true },
+                { name: "👤 Auteur", value: `${message.author.username} (<@${message.author.id}>)`, inline: true },
+                { name: "📍 Salon", value: `<#${message.channel.id}>`, inline: true },
                 { name: "💬 Contenu", value: message.content?.slice(0, 1024) || "*Aucun contenu textuel (Fichier/Embed)*" }
             )
             .setTimestamp();
@@ -90,15 +101,15 @@ module.exports = (client) => {
 
     client.on("messageUpdate", async (oldMessage, newMessage) => {
         if (!oldMessage.guild || oldMessage.author?.bot) return;
-        if (oldMessage.partial) return; // Impossible de comparer si l'ancien n'est pas en cache
+        if (oldMessage.partial) return; 
         if (oldMessage.content === newMessage.content) return;
 
         const embed = new EmbedBuilder()
             .setColor("Yellow")
             .setTitle("✏️ Message modifié")
             .addFields(
-                { name: "👤 Auteur", value: `${oldMessage.author.tag} (<@${oldMessage.author.id}>)` },
-                { name: "📍 Salon", value: `${oldMessage.channel}` },
+                { name: "👤 Auteur", value: `${oldMessage.author.username} (<@${oldMessage.author.id}>)` },
+                { name: "📍 Salon", value: `<#${oldMessage.channel.id}>` },
                 { name: "📜 Ancien", value: oldMessage.content?.slice(0, 1024) || "*Vide*" },
                 { name: "🆕 Nouveau", value: newMessage.content?.slice(0, 1024) || "*Vide*" }
             )
@@ -112,13 +123,15 @@ module.exports = (client) => {
     client.on("channelCreate", async (channel) => {
         if (!channel.guild) return;
 
+        const readableType = channelTypesText[channel.type] || "Autre/Inconnu";
+
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("📁 Salon créé")
             .addFields(
                 { name: "📌 Nom", value: channel.name, inline: true },
                 { name: "🆔 ID", value: channel.id, inline: true },
-                { name: "🗂️ Type", value: `${channel.type}`, inline: true }
+                { name: "🗂️ Type", value: readableType, inline: true }
             )
             .setTimestamp();
 
@@ -132,7 +145,7 @@ module.exports = (client) => {
         const fetchedLogs = await channel.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.ChannelDelete }).catch(() => null);
         const deletionLog = fetchedLogs?.entries.first();
         if (deletionLog && deletionLog.target.id === channel.id) {
-            executor = deletionLog.executor.tag;
+            executor = deletionLog.executor.username;
         }
 
         const embed = new EmbedBuilder()
@@ -156,7 +169,7 @@ module.exports = (client) => {
             .setTitle("⚙️ Salon modifié (Nom)")
             .addFields(
                 { name: "📌 Ancien nom", value: oldChannel.name, inline: true },
-                { name: "🆕 Nouveau nom", value: `${newChannel}`, inline: true }
+                { name: "🆕 Nouveau nom", value: newChannel.name, inline: true }
             )
             .setTimestamp();
 
@@ -183,7 +196,7 @@ module.exports = (client) => {
         const fetchedLogs = await role.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.RoleDelete }).catch(() => null);
         const roleLog = fetchedLogs?.entries.first();
         if (roleLog && roleLog.target.id === role.id) {
-            executor = roleLog.executor.tag;
+            executor = roleLog.executor.username;
         }
 
         const embed = new EmbedBuilder()
@@ -207,14 +220,14 @@ module.exports = (client) => {
             .setTitle("⚙️ Rôle modifié (Nom)")
             .addFields(
                 { name: "📌 Ancien nom", value: oldRole.name, inline: true },
-                { name: "🆕 Nouveau nom", value: `${newRole}`, inline: true }
+                { name: "🆕 Nouveau nom", value: newRole.name, inline: true }
             )
             .setTimestamp();
 
         sendLog(LOGS.permissions, embed);
     });
 
-    // --- ETATS VOCAUX ---
+    // --- ÉTATS VOCAUX ---
 
     client.on("voiceStateUpdate", async (oldState, newState) => {
         const member = newState.member || oldState.member;
@@ -226,7 +239,7 @@ module.exports = (client) => {
                 .setColor("Green")
                 .setTitle("🔊 Vocal rejoint")
                 .addFields(
-                    { name: "👤 Membre", value: `${member.user.tag} (<@${member.id}>)`, inline: true },
+                    { name: "👤 Membre", value: `${member.user.username} (<@${member.id}>)`, inline: true },
                     { name: "🎧 Salon", value: newState.channel.name, inline: true }
                 )
                 .setTimestamp();
@@ -239,7 +252,7 @@ module.exports = (client) => {
                 .setColor("Red")
                 .setTitle("📤 Vocal quitté")
                 .addFields(
-                    { name: "👤 Membre", value: `${member.user.tag} (<@${member.id}>)`, inline: true },
+                    { name: "👤 Membre", value: `${member.user.username} (<@${member.id}>)`, inline: true },
                     { name: "🎧 Salon", value: oldState.channel.name, inline: true }
                 )
                 .setTimestamp();
@@ -252,7 +265,7 @@ module.exports = (client) => {
                 .setColor("Blue")
                 .setTitle("🔀 Vocal changé")
                 .addFields(
-                    { name: "👤 Membre", value: `${member.user.tag} (<@${member.id}>)` },
+                    { name: "👤 Membre", value: `${member.user.username} (<@${member.id}>)` },
                     { name: "📉 Ancien Salon", value: oldState.channel.name, inline: true },
                     { name: "📈 Nouveau Salon", value: newState.channel.name, inline: true }
                 )
@@ -270,14 +283,14 @@ module.exports = (client) => {
         const fetchedLogs = await ban.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberBanAdd }).catch(() => null);
         const banLog = fetchedLogs?.entries.first();
         if (banLog && banLog.target.id === ban.user.id) {
-            executor = `${banLog.executor.tag} (<@${banLog.executor.id}>)`;
+            executor = `${banLog.executor.username} (<@${banLog.executor.id}>)`;
         }
 
         const embed = new EmbedBuilder()
             .setColor("DarkRed")
             .setTitle("🔨 Membre banni")
             .addFields(
-                { name: "👤 Utilisateur", value: `${ban.user.tag} (<@${ban.user.id}>)`, inline: true },
+                { name: "👤 Utilisateur", value: `${ban.user.username} (<@${ban.user.id}>)`, inline: true },
                 { name: "🛡️ Modérateur", value: executor, inline: true },
                 { name: "📝 Raison", value: reason }
             )
@@ -291,14 +304,14 @@ module.exports = (client) => {
         const fetchedLogs = await ban.guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberBanRemove }).catch(() => null);
         const unbanLog = fetchedLogs?.entries.first();
         if (unbanLog && unbanLog.target.id === ban.user.id) {
-            executor = `${unbanLog.executor.tag} (<@${unbanLog.executor.id}>)`;
+            executor = `${unbanLog.executor.username} (<@${unbanLog.executor.id}>)`;
         }
 
         const embed = new EmbedBuilder()
             .setColor("Green")
             .setTitle("✅ Membre débanni")
             .addFields(
-                { name: "👤 Utilisateur", value: `${ban.user.tag} (<@${ban.user.id}>)`, inline: true },
+                { name: "👤 Utilisateur", value: `${ban.user.username} (<@${ban.user.id}>)`, inline: true },
                 { name: "🛡️ Modérateur", value: executor, inline: true }
             )
             .setTimestamp();
@@ -306,7 +319,7 @@ module.exports = (client) => {
         sendLog(LOGS.sanctions, embed);
     });
 
-    // --- SÉCURITÉ / STRUCTURES DIVERSES ---
+    // --- STRUCTURES DIVERSES ---
 
     client.on("emojiCreate", async (emoji) => {
         const embed = new EmbedBuilder()
