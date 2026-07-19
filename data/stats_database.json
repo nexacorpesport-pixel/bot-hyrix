@@ -1,8 +1,8 @@
 {
-  "users": {},
-  "channels": {},
-  "server": {
-    "totalMessages": 0,
-    "totalVoiceTime": 0
-  }
+    "users": {},
+    "channels": {},
+    "server": {
+        "totalMessages": 0,
+        "totalVoiceTime": 0
+    }
 }
