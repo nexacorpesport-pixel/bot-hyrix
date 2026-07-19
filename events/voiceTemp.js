@@ -17,12 +17,12 @@ const path = require("path");
 // =====================================================
 // CORE INFRASTRUCTURE CONFIGURATION
 // =====================================================
-const TRIGGER_CHANNEL = "1501626007562485910";
-const TEMP_CATEGORY = "1501626005662597121";
-const LOGS_CHANNEL = "1521931122043256892";
+const TRIGGER_CHANNEL = "1528194701273075803";
+const TEMP_CATEGORY = "1528194689222574100";
+const LOGS_CHANNEL = "1528213718595539064";
 
 const OWNER_ID = "1431661348218998948";
-const STAFF_ROLES = ["1501625944148934758", "1521928409268228096"]; 
+const STAFF_ROLES = ["1528184662478946535", "1528184660436455545"]; 
 
 // RAM Runtime Registry
 const tempChannels = new Map();
