@@ -7,7 +7,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DB_PATH = path.join(__dirname, "../data/moderationDB.json");
-const STAFF_LOGS_CHANNEL = "1521931122043256892"; 
+const STAFF_LOGS_CHANNEL = "1528213768818131077"; 
 
 // =====================================================
 // INTERFACE DE GESTION DE LA BASE DE DONNÉES
