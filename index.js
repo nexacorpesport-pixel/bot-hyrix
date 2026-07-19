@@ -58,7 +58,6 @@ const antiNuke = require("./events/antiNuke");
 const bienvenue = require("./events/bienvenue");
 const coaching = require("./events/coaching");
 const tournamentSystem = require("./events/tournament");
-const effectifSystem = require("./events/effectif"); 
 const statsSystem = require("./events/stats_system"); // À la place de "./events/stats"
 
 const GUILD_ID = "1528107464908603657";
