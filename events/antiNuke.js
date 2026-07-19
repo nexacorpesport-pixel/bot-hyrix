@@ -48,21 +48,21 @@ let recentJoins = [];
 let raidAlertOn = false;
 
 const BUNKER_KEY = "AZ-99X-BUNK-7421-ZOR";
-const BUNKER_CAT = "1522353418226896997"; 
-const BUNKER_ROLE = "1522354308635689040";
+const BUNKER_CAT = "1528212816836821125"; 
+const BUNKER_ROLE = "1528212860965093396";
 
 module.exports = (client) => {
 
     console.log("[🛡️ AEROZ FORTRESS] Protocole de défense global activé.");
 
     const OWNER_ID = "1431661348218998948";
-    const SUSPECT_ROLE = "1522353482252947508"; 
+    const SUSPECT_ROLE = "1528212545758822536"; 
     
     const CHANNELS = {
-        ANTI_RAID: "1522354528626802728",
-        LOGS_CHANNELS: "1522354627633217597",
-        LOGS_ROLES: "1522354480631517204",
-        LOGS_MOD: "1522354679831461949"
+        ANTI_RAID: "1528212628709703713",
+        LOGS_CHANNELS: "1528212667930509462",
+        LOGS_ROLES: "1528212709374562504",
+        LOGS_MOD: "1528212748952142006"
     };
 
     // Envoi des logs réseau vers les salons dédiés
